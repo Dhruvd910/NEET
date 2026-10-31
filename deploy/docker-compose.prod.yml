@@ -1,0 +1,61 @@
+# Single-host production stack: Caddy (HTTPS) → Next.js web → FastAPI api → PostgreSQL + Redis.
+# See docs/DEPLOYMENT.md. Run from the repository root:
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
+services:
+  db:
+    image: postgres:16.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: neet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: neet
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neet"]
+      interval: 10s
+      retries: 5
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]  # counters only; nothing to persist
+
+  api:
+    build: ../backend
+    restart: unless-stopped
+    env_file: ../backend/.env.production
+    environment:
+      DATABASE_URL: postgresql+psycopg://neet:${POSTGRES_PASSWORD}@db:5432/neet
+      REDIS_URL: redis://redis:6379/0
+      TRUST_PROXY_HEADERS: "true"
+    volumes: [storage:/data/storage]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready')"]
+      interval: 30s
+      retries: 3
+
+  web:
+    build:
+      context: ../frontend
+      args: {API_ORIGIN: "http://api:8000"}
+    restart: unless-stopped
+    depends_on: [api]
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [web]
+
+volumes:
+  pgdata:
+  storage:
+  caddy_data:

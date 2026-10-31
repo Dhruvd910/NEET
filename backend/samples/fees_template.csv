@@ -1,0 +1,2 @@
+college_code,college_name,course,academic_year,quota,fee_type,amount_inr,period,mandatory,refundable,note
+DEMO-KA-GOV-A,,MBBS,2025-26,ALL,exam,2500,annual,yes,no,University exam fee (demo)

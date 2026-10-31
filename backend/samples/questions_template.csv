@@ -1,0 +1,2 @@
+chapter_code,topic,difficulty,question,option_1,option_2,option_3,option_4,answer,explanation
+PHY-11-13,Simple pendulum,easy,"If the length of a simple pendulum is made four times, its time period becomes",four times,twice,half,unchanged,2,"T = 2π√(L/g), so T ∝ √L."

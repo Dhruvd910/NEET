@@ -1,0 +1,52 @@
+# Render Blueprint for the API (free plan). Render reads this when you choose New → Blueprint.
+# Values marked `sync: false` are secrets you type into the Render dashboard; they are never stored here.
+# See docs/FREE_HOSTING.md.
+services:
+  - type: web
+    name: neet-compass-api
+    runtime: docker
+    plan: free
+    region: singapore          # closest Render region to India
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/ready
+    autoDeploy: true
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATABASE_URL           # Neon connection string (postgres://… is fine)
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true          # Render creates a long random value
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: PUBLIC_APP_URL          # your Vercel address, e.g. https://neet-compass.vercel.app
+        sync: false
+      - key: CORS_ORIGINS            # same address as a JSON list, e.g. ["https://neet-compass.vercel.app"]
+        sync: false
+      - key: SEED_ON_START           # "demo" shows the labelled demo data; "reference" for an empty catalogue
+        value: demo
+      - key: SEED_DEMO_PASSWORD      # password for admin@demo.test / student@demo.test — choose a strong one
+        sync: false
+      - key: OPENROUTER_API_KEY      # AI assistant + practice-question generation
+        sync: false
+      - key: EMAIL_BACKEND
+        value: smtp
+      - key: EMAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: WEB_CONCURRENCY         # the free instance has 512 MB of memory: one worker
+        value: "1"
+      - key: QUESTION_GEN_WORKERS
+        value: "2"
+      - key: LOG_JSON
+        value: "true"

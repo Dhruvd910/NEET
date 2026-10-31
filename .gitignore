@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+backend/.env
+backend/*.db
+backend/storage/
+frontend/node_modules/
+frontend/.next/
+frontend/.env*.local
+
+# Playwright
+frontend/.next-e2e/
+frontend/test-results/
+frontend/playwright-report/
+backend/.e2e/
+deploy/.env
+backend/.env.production
+frontend/tsconfig.tsbuildinfo
+*.log

@@ -1,0 +1,12 @@
+# Automatic HTTPS (Let's Encrypt) for $DOMAIN. Only the web app is exposed; it proxies /api to the API.
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+	reverse_proxy web:3000
+}
