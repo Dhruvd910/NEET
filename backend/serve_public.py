@@ -1,18 +1,21 @@
-"""Host the site from this computer so anyone on the internet can use it, through a Cloudflare quick tunnel.
+"""Host the site from this computer so anyone on the internet can use it.
 
-    python serve_public.py
+    python serve_public.py              # Tailscale Funnel when this PC is signed in: a fixed address
+    python serve_public.py --cloudflare # Cloudflare quick tunnel: no account, but a new address every start
 
-- Nothing is opened on your router or firewall: the site listens only on this computer (127.0.0.1) and
-  `cloudflared` carries visitors' HTTPS traffic to it.
+- Nothing is opened on your router or firewall: the site listens only on this computer (127.0.0.1) and the
+  tunnel (Tailscale Funnel or `cloudflared`) carries visitors' HTTPS traffic to it.
 - The public site has its own data in backend/live/ (database and files), separate from development data.
 - First run creates backend/.env.live with a random session secret. Keep that file private; it is git-ignored.
 - Real data only: the official NMC college list (python -m app.maintenance import-colleges). No demo data is
   loaded. Create your admin account with: python -m app.maintenance create-admin --email you@example.com
-- The address (https://….trycloudflare.com) is new every time this starts; it is printed and saved to
-  backend/live/public_url.txt. Ctrl+C stops the site and the tunnel.
+- Tailscale gives a fixed address named after this PC (https://neet-compass.<tailnet>.ts.net). A quick tunnel's
+  address (https://….trycloudflare.com) changes every start. Either way it is printed and saved to
+  backend/live/public_url.txt. Ctrl+C stops the site (and the Cloudflare tunnel).
 
-Needs `cloudflared` (winget install Cloudflare.cloudflared). Your OpenRouter key is read from backend/.env.
+Needs Tailscale (signed in, Funnel allowed) or `cloudflared`. Your OpenRouter key is read from backend/.env.
 """
+import json
 import os
 import re
 import secrets
@@ -65,6 +68,25 @@ def start_tunnel() -> tuple[subprocess.Popen, str]:
     sys.exit("The Cloudflare tunnel did not start. Check your internet connection and try again.")
 
 
+TAILSCALE = r"C:\Program Files\Tailscale\tailscale.exe"
+
+
+def tailscale_url() -> str | None:
+    """This PC's fixed Funnel address, or None when Tailscale is not installed or not signed in."""
+    exe = shutil.which("tailscale") or TAILSCALE
+    if not Path(exe).exists():
+        return None
+    try:
+        status = json.loads(subprocess.run([exe, "status", "--json"], capture_output=True, text=True, timeout=20).stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+    if status.get("BackendState") != "Running":
+        return None
+    # Funnel stays on across restarts (--bg); running it again is harmless and repairs a missing setting.
+    subprocess.run([exe, "funnel", "--bg", "--yes", str(PORT)], capture_output=True, timeout=30)
+    return "https://" + status["Self"]["DNSName"].rstrip(".")
+
+
 def wait_until_ready(url: str, proc: subprocess.Popen) -> None:
     for _ in range(180):
         if proc.poll() is not None:
@@ -80,7 +102,10 @@ def wait_until_ready(url: str, proc: subprocess.Popen) -> None:
 def main() -> None:
     LIVE.mkdir(exist_ok=True)
     s = live_secrets()
-    tunnel, url = start_tunnel()
+    url = None if "--cloudflare" in sys.argv else tailscale_url()
+    tunnel = None
+    if url is None:
+        tunnel, url = start_tunnel()
     env = {
         **os.environ,
         "ENV": "staging",                     # production mode needs PostgreSQL + SMTP; this PC has neither
@@ -106,7 +131,7 @@ def main() -> None:
         print("\nStopping…")
     finally:
         for p in (site, tunnel):
-            if p.poll() is None:
+            if p is not None and p.poll() is None:
                 p.terminate()
 
 
