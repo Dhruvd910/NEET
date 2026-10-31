@@ -8,6 +8,7 @@ Host NEET Compass for **₹0 a month** with three free services:
 | API (FastAPI, Docker) | [Render](https://render.com) free web service | Sleeps after 15 min idle, ~1 min to wake; 750 hours/month |
 | Database (PostgreSQL) | [Neon](https://neon.com) Free | 1 GB storage, scales to zero when idle |
 | Email (guardian consent) | Any free SMTP service, e.g. [Brevo](https://www.brevo.com) | Enough for sign-up emails |
+| Domain + DNS (optional) | [Cloudflare](https://www.cloudflare.com) Free | Free DNS and protection; you pay only for the domain |
 
 The only running cost is AI usage on your OpenRouter key: about ₹0.05–0.17 per assistant question, and about
 ₹0.04 per new practice question.
@@ -97,10 +98,40 @@ That keeps the sign-in cookie first-party and secure.
   `python -m app.seed --remove-demo` against the Neon database from your computer (set `DATABASE_URL` to the Neon
   string). The free Render plan has no shell.
 - **Updates:** every push to GitHub redeploys both services automatically.
-- **Custom domain (optional):** add it in Vercel → Settings → Domains. A `.in` domain costs about ₹500–900 a year.
-  Then update `PUBLIC_APP_URL` and `CORS_ORIGINS` in Render.
+- **Custom domain:** see Step 5 (Cloudflare).
 - **Keep an eye on usage:** Neon's dashboard shows storage (1 GB is plenty for this app), and OpenRouter shows AI
   spend.
+
+## Step 5 — Your own domain on Cloudflare (optional)
+
+Cloudflare's free plan manages your domain's DNS and adds DDoS protection. Vercel keeps serving the website.
+
+**Cost:** the domain itself is the only expense. A `.com` or `.in` costs about ₹500–1,000 a year from any
+registrar (Cloudflare Registrar sells some extensions at cost).
+
+1. **Add the domain to Cloudflare.**
+   - Sign up at cloudflare.com and choose **Add a domain**, picking the **Free** plan.
+   - Cloudflare gives you two nameservers. Set them at the registrar where you bought the domain.
+   - Wait until Cloudflare shows the domain as **Active**. This usually takes minutes, occasionally up to a day.
+2. **Add the domain in Vercel.** Go to your project → **Settings → Domains** and add both `example.in` and
+   `www.example.in`. Vercel then shows the exact DNS records it wants, usually:
+   - an **A** record for `@` (the bare domain), and
+   - a **CNAME** record for `www`.
+3. **Create those records in Cloudflare** (DNS → Records), using the exact values Vercel shows. Set the proxy
+   status to **DNS only** (grey cloud).
+   - Vercel then issues the HTTPS certificate itself.
+   - With the orange cloud on, Vercel can't renew certificates and you can get redirect loops. Vercel recommends
+     DNS only.
+4. **Wait for Vercel.** Each domain should show "Valid Configuration" in Vercel. Choose which one is primary; the
+   other redirects to it.
+5. **Update Render.** Set `PUBLIC_APP_URL` to `https://www.example.in` (your primary domain) and `CORS_ORIGINS` to
+   `["https://www.example.in"]`. These are used in guardian-consent email links.
+6. **Optional, and free in Cloudflare:**
+   - **Email routing:** forward `contact@example.in` to your Gmail.
+   - **Email records:** add the SPF/DKIM records your SMTP provider gives you, so guardian emails don't land in
+     spam.
+
+The API stays at its Render address. The website forwards `/api` to it, so the API needs no domain of its own.
 
 ## Fully free and always on (advanced)
 
