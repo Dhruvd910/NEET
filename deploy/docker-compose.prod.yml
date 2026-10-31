@@ -1,4 +1,4 @@
-# Single-host production stack: Caddy (HTTPS) → Next.js web → FastAPI api → PostgreSQL + Redis.
+# Single-host production stack: Caddy (HTTPS) → FastAPI app (website + API) → PostgreSQL + Redis.
 # See docs/DEPLOYMENT.md. Run from the repository root:
 #   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
 services:
@@ -37,12 +37,6 @@ services:
       interval: 30s
       retries: 3
 
-  web:
-    build:
-      context: ../frontend
-      args: {API_ORIGIN: "http://api:8000"}
-    restart: unless-stopped
-    depends_on: [api]
 
   caddy:
     image: caddy:2.8
@@ -53,7 +47,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    depends_on: [web]
+    depends_on: [api]
 
 volumes:
   pgdata:

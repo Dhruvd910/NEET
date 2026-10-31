@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, status_badge, source, notice %}
+{% from "_icons.html" import icon %}
+{% set o = d.overview %}
+{% block title %}{{ o.name }} · NEET Compass{% endblock %}
+{% macro row(k, v) %}<div><dt class="text-slate-500">{{ k }}</dt><dd class="font-medium">{{ v }}</dd></div>{% endmacro %}
+{% macro stat(label, value, hint=None) %}<div class="rounded-lg bg-slate-50 p-3"><p class="text-xs text-slate-500">{{ label }}</p><p class="text-lg font-semibold">{{ value }}</p>{% if hint %}<p class="text-xs text-slate-500">{{ hint }}</p>{% endif %}</div>{% endmacro %}
+{% block head %}{% if tab == "around" and o.latitude is not none %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endif %}{% endblock %}
+{% block content %}
+<div class="space-y-5">
+  {% call page_header(o.name, "Hospital", "Medical college") %}
+    <p>{{ [o.city, o.state]|select|join(", ") }} · <span class="capitalize">{{ o.institution_type }}</span>{% if o.university %} · {{ o.university }}{% endif %}</p>
+    <div class="mt-3 flex flex-wrap gap-2">
+      {% if me %}<button class="btn-secondary" hx-post="/saved/{{ o.id }}/toggle" hx-swap="outerHTML">{{ "★ Saved" if saved else "☆ Save" }}</button>
+      {% else %}<a class="btn-secondary" href="/login?next=/colleges/{{ o.id }}">☆ Save</a>{% endif %}
+      <button class="btn-secondary" type="button" data-compare="{{ o.id }}">+ Compare</button>
+      <a class="btn-secondary hidden" href="/compare" data-compare-link>Compare (<span data-compare-count>0</span>)</a>
+    </div>
+  {% endcall %}
+  {% if o.is_demo %}{% call notice("warn") %}<strong>DEMO college.</strong> This is a fictional record used to develop the platform. None of its figures are real.{% endcall %}{% endif %}
+
+  <div role="tablist" class="flex gap-1 overflow-x-auto border-b border-slate-200">
+    {% for key, label in TABS %}
+      {# "Around campus" loads the map library, so it opens as a full page; other tabs swap in place. #}
+      <a role="tab" aria-selected="{{ 'true' if tab == key else 'false' }}" href="/colleges/{{ o.id }}?tab={{ key }}"
+         {% if key != "around" %}hx-get="/colleges/{{ o.id }}?tab={{ key }}" hx-target="#tab-region" hx-select="#tab-region" hx-swap="outerHTML" hx-push-url="true"{% endif %}
+         class="whitespace-nowrap border-b-2 px-3 py-2 text-sm {{ 'border-teal-700 font-medium text-teal-800' if tab == key else 'border-transparent text-slate-600 hover:text-slate-900' }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  <div id="tab-region">
+  {% if tab == "overview" %}
+    <section class="card space-y-3">
+      <dl class="grid gap-3 text-sm sm:grid-cols-2">
+        <div><dt class="text-slate-500">Official website</dt><dd class="font-medium">{% if o.website %}<a class="underline" href="{{ o.website }}" target="_blank" rel="noreferrer">{{ o.website }}</a>{% else %}Not available{% endif %}</dd></div>
+        {{ row("Address", o.address or "Not available") }}
+        {{ row("Established", o.established_year or "Not available") }}
+        {{ row("Recognition", (o.recognition_status ~ " (" ~ o.recognition_year ~ ")") if o.recognition_status else "Not verified") }}
+        {{ row("Also known as", o.aliases|join("; ") or "—") }}
+      </dl>
+      <h2 class="h2">Courses & approved intake</h2>
+      {% for code, rows in o.courses.items() %}{% for c in rows %}
+        <div class="text-sm">
+          <p><strong>{{ code }}</strong> — {{ c.course }}: {{ c.approved_intake or "?" }} seats ({{ c.academic_year }}) · {{ c.duration_years }} years{% if c.duration_note %} ({{ c.duration_note }}){% endif %}</p>
+          {{ source(c) }}
+        </div>
+      {% endfor %}{% endfor %}
+      {{ source(o) }}
+    </section>
+
+  {% elif tab == "admission" %}
+    <section class="card space-y-3 text-sm">
+      <p>Entrance exam: <strong>NEET-UG</strong> · Counselling: {{ d.admission.counselling_authorities|join(", ") or "—" }}</p>
+      {% if not routes %}<p>No cutoff data yet.</p>{% else %}
+        <form method="get" class="flex flex-wrap gap-3" hx-get="/colleges/{{ o.id }}" hx-target="#tab-region" hx-select="#tab-region" hx-swap="outerHTML" hx-trigger="change" hx-push-url="true">
+          <input type="hidden" name="tab" value="admission">
+          <label class="flex items-center gap-2">Route <select name="route" class="input !w-auto">{% for x in routes %}<option {{ 'selected' if x == route }}>{{ x }}</option>{% endfor %}</select></label>
+          <label class="flex items-center gap-2">Category <select name="cat" class="input !w-auto">{% for x in cats %}<option {{ 'selected' if x == cat }}>{{ x }}</option>{% endfor %}</select></label>
+          <noscript><button class="btn-secondary">Show</button></noscript>
+        </form>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[560px] text-left">
+            <thead class="text-xs text-slate-500"><tr><th class="py-1">Year</th><th>Round</th><th>Opening</th><th>Closing</th><th>Basis</th><th>Domicile</th><th>Status</th></tr></thead>
+            <tbody>{% for c in cutoff_rows %}
+              <tr class="border-t border-slate-100"><td class="py-1">{{ c.exam_year }}</td><td>{{ c.round_name or c.round }}</td><td>{{ c.opening_rank|num }}</td>
+                <td class="font-medium">{{ c.closing_rank|num }}</td><td>{{ "AIR" if c.rank_basis == "AIR" else "State rank" }}</td><td>{{ "Required" if c.domicile_required else "No" }}</td>
+                <td>{{ status_badge(c.verification_status) }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+        {% if cutoff_rows %}{{ source(cutoff_rows[0]) }}{% endif %}
+        <p class="text-xs text-slate-500">Cutoffs from different routes, categories or years are not interchangeable. Past cutoffs do not predict this year's.</p>
+      {% endif %}
+    </section>
+
+  {% elif tab == "fees" %}
+    <section class="space-y-4">
+      {% if not d.costs %}<p class="card">No fee information yet.</p>{% endif %}
+      {% for code, c in d.costs.items() %}
+        <div class="card space-y-3 text-sm">
+          <h2 class="h2">{{ code }} — estimated cost {% if c.academic_year %}<span class="text-sm font-normal text-slate-500">(fees for {{ c.academic_year }})</span>{% endif %}</h2>
+          {% if not c.available %}<p>No fee records available.</p>{% else %}
+            <div class="grid gap-3 sm:grid-cols-3">
+              {{ stat("Estimated per year", c.estimated_annual_total_inr|inr, "Mandatory fees + hostel & mess") }}
+              {{ stat("One-time charges", c.one_time_inr|inr, "+ " ~ (c.refundable_deposits_inr|inr) ~ " refundable deposit") }}
+              {{ stat("Full course (estimate)", c.estimated_full_course_inr|inr, (c.course_duration_years or "?")|string ~ " year course") }}
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[560px] text-left">
+                <thead class="text-xs text-slate-500"><tr><th class="py-1">Fee</th><th>Amount</th><th>Period</th><th>Type</th><th>Source</th></tr></thead>
+                <tbody>{% for l in c.fee_lines %}
+                  <tr class="border-t border-slate-100"><td class="py-1 capitalize">{{ l.fee_type|replace("_", " ") }}</td><td>{{ l.amount_inr|inr }}</td>
+                    <td>{{ l.period|replace("_", " ") }}</td><td>{{ "Mandatory" if l.mandatory else "Optional" }}{{ " · refundable" if l.refundable }}</td>
+                    <td class="text-xs">{{ l.source_name }} {{ status_badge(l.verification_status) }}</td></tr>{% endfor %}</tbody>
+              </table>
+            </div>
+          {% endif %}
+          <ul class="list-disc pl-5 text-xs text-amber-800">{% for w in c.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+        </div>
+      {% endfor %}
+    </section>
+
+  {% elif tab == "hostel" %}
+    <section class="space-y-3">
+      {% if not d.hostels %}<p class="card">No verified hostel information. Contact the college directly.</p>{% endif %}
+      {% for h in d.hostels %}
+        <div class="card text-sm">
+          <h3 class="font-medium">{{ ("Campus hostel — " ~ (h.gender or "all")) if h.on_campus else (h.provider_name or "Off-campus accommodation") }}</h3>
+          <dl class="mt-2 grid gap-2 sm:grid-cols-3">
+            {% if h.on_campus %}
+              {{ row("Hostels", h.hostel_count or "Not published") }}{{ row("Capacity", h.capacity or "Not published") }}{{ row("Rooms", h.room_types|join(", ") or "Not published") }}
+            {% else %}
+              {{ row("Rent", ((h.rent_min_inr|inr) ~ "–" ~ (h.rent_max_inr|inr) ~ " / " ~ h.rent_period) if h.rent_min_inr else "Not available") }}
+              {{ row("Distance", (h.distance_km ~ " km") if h.distance_km is not none else "—") }}
+            {% endif %}
+            {{ row("Facilities", h.facilities|join(", ") or "—") }}
+          </dl>
+          <p class="mt-2 text-amber-800">{{ h.availability_note }}</p>
+          {{ source(h, "mt-1") }}
+        </div>
+      {% endfor %}
+    </section>
+
+  {% elif tab == "academics" %}
+    <section class="card space-y-3 text-sm">
+      {% if not d.facilities %}<p>No verified academic or clinical facility data yet.</p>{% endif %}
+      {% for f in d.facilities %}
+        <div><p><span class="capitalize text-slate-500">{{ f.category }}:</span> <strong>{{ f.name }}</strong>{% if f.numeric_value is not none %} — {{ f.numeric_value|num }} {{ f.unit or "" }}{% endif %}{% if f.details %} · {{ f.details }}{% endif %}</p>{{ source(f) }}</div>
+      {% endfor %}
+    </section>
+
+  {% elif tab == "outcomes" %}
+    <section class="card space-y-3 text-sm">
+      {% call notice() %}Medical colleges don't have "placements" in the engineering sense. We show internship, stipend and postgraduate pathway information only when it is sourced, and flag figures that cannot be compared across colleges.{% endcall %}
+      {% for x in d.outcomes %}
+        <div><p><strong>{{ x.metric|replace("_", " ") }}</strong>: {{ (x.value_numeric|inr) if x.value_numeric is not none else x.value_text }} {% if x.year %}({{ x.year }}){% endif %}
+          {% if not x.comparable %}<span class="ml-1 text-xs text-slate-500">· not comparable across colleges</span>{% endif %}</p>{{ source(x) }}</div>
+      {% endfor %}
+    </section>
+
+  {% elif tab == "campus" %}
+    <section class="card space-y-3 text-sm">
+      <p class="text-slate-600">{{ d.reviews.label }}</p>
+      <p>{% if d.reviews.count %}Average student rating <strong>{{ d.reviews.average_rating }}/5</strong> from {{ d.reviews.count }} review(s){% else %}No approved reviews yet.{% endif %}</p>
+      {% for r in d.reviews["items"] %}
+        <blockquote class="rounded-lg bg-slate-50 p-3"><p>{{ "★" * r.rating }}{{ "☆" * (5 - r.rating) }} {% if r.is_demo %}{{ status_badge("demo") }}{% endif %}</p><p class="mt-1">{{ r.body }}</p></blockquote>
+      {% endfor %}
+      <div id="review-form">
+        {% if me %}
+          <form hx-post="/colleges/{{ o.id }}/reviews" hx-target="#review-form" class="space-y-2 border-t border-slate-200 pt-3">
+            <h3 class="font-medium">Studied here? Share your experience</h3>
+            <p class="text-xs text-slate-500">Reviews are moderated. Don't include names or personal details of anyone.</p>
+            <select name="rating" class="input !w-auto" aria-label="Rating">{% for r in [5, 4, 3, 2, 1] %}<option value="{{ r }}" {{ 'selected' if r == 4 }}>{{ r }} stars</option>{% endfor %}</select>
+            <textarea name="body" class="input" rows="3" minlength="30" maxlength="3000" required placeholder="Academics, hostel, mess, clinical exposure… (min. 30 characters)"></textarea>
+            <button class="btn">Submit for moderation</button>
+          </form>
+        {% else %}
+          <p class="border-t border-slate-200 pt-3 text-slate-600"><a class="text-teal-700 underline" href="/login?next=/colleges/{{ o.id }}?tab=campus">Sign in</a> to share your experience.</p>
+        {% endif %}
+      </div>
+    </section>
+
+  {% elif tab == "around" %}
+    <section class="space-y-4 text-sm">
+      {% call notice() %}Distances are straight-line and walking times are rough estimates. We never claim a place is open, safe or has rooms available right now. Check with the place and with current students.{% endcall %}
+      {% if o.latitude is not none and o.longitude is not none %}
+        <div id="nearby-map" class="h-72 w-full rounded-lg border border-slate-200" role="region" aria-label="Map of places around the college"
+             data-lat="{{ o.latitude }}" data-lon="{{ o.longitude }}" data-name="{{ o.name }}" data-tiles="{{ settings.map_tile_url }}" data-attribution="{{ settings.map_attribution }}" data-places='{{ map_places|tojson }}'></div>
+      {% else %}
+        <p class="text-xs text-slate-500">{{ "Map hidden: demo colleges have fictional locations." if o.is_demo else "Map shown once the college's verified location is added." }}</p>
+      {% endif %}
+      {% if not d.nearby %}<p class="muted">No nearby places recorded for this college yet.</p>{% else %}
+        <div class="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+          {% for c in ["All"] + groups|map(attribute=0)|list %}
+            <a href="/colleges/{{ o.id }}?tab=around&ncat={{ c|urlquote }}" hx-get="/colleges/{{ o.id }}?tab=around&ncat={{ c|urlquote }}" hx-target="#tab-region" hx-select="#tab-region" hx-swap="outerHTML" hx-push-url="true"
+               aria-pressed="{{ 'true' if ncat == c else 'false' }}" class="rounded-full px-3 py-1 text-xs ring-1 {{ 'bg-teal-700 text-white ring-teal-700' if ncat == c else 'bg-white text-slate-700 ring-slate-300' }}">{{ c }}</a>
+          {% endfor %}
+        </div>
+        <div class="grid gap-4 md:grid-cols-2">
+          {% for cat, ps in groups if ncat == "All" or ncat == cat %}
+            <div class="card">
+              <h3 class="font-semibold">{{ cat }}</h3>
+              {% if CATEGORY_HINT.get(cat) %}<p class="mt-0.5 text-xs text-amber-800">{{ CATEGORY_HINT[cat] }}</p>{% endif %}
+              <ul class="mt-2 divide-y divide-slate-100">
+                {% for p in ps %}
+                  <li class="flex items-start justify-between gap-3 py-1.5">
+                    <div class="min-w-0">
+                      <p class="truncate">{% if p.route_url %}<a class="underline" href="{{ p.route_url }}" target="_blank" rel="noreferrer">{{ p.name }}</a>{% else %}{{ p.name }}{% endif %}{% if p.is_demo %} {{ status_badge("demo") }}{% endif %}</p>
+                      <p class="text-xs text-slate-500">{{ KIND_LABEL.get(p.kind, p.kind) }}{% if p.price_range %} · {{ p.price_range }}{% endif %}</p>
+                    </div>
+                    <div class="shrink-0 text-right text-xs text-slate-600">
+                      <p>{{ (p.distance_km ~ " km") if p.distance_km is not none else "—" }}</p>
+                      {% if p.walk_minutes is not none %}<p>~{{ p.walk_minutes }} min walk</p>{% endif %}
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endfor %}
+        </div>
+        <p class="text-xs text-slate-500">Source: {{ d.nearby[0].provider }}{% if attribution %} · Map data {{ attribution }}{% endif %} · Last checked {{ d.nearby[0].last_checked_at|date }}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/compare-tray.js" defer></script>
+{% if tab == "around" and o.latitude is not none %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="/static/js/nearby-map.js" defer></script>
+{% endif %}
+{% endblock %}

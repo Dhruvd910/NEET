@@ -1,4 +1,4 @@
-# Automatic HTTPS (Let's Encrypt) for $DOMAIN. Only the web app is exposed; it proxies /api to the API.
+# Automatic HTTPS (Let's Encrypt) for $DOMAIN, in front of the app (it serves both the website and /api).
 {$DOMAIN} {
 	encode zstd gzip
 	header {
@@ -6,7 +6,7 @@
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Permissions-Policy "camera=(), microphone=(self), geolocation=()"
 	}
-	reverse_proxy web:3000
+	reverse_proxy api:8000
 }

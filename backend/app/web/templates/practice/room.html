@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ v.title }} · NEET Compass{% endblock %}
+{% block content %}
+<div id="exam-room" data-attempt="{{ v.id }}" data-duration="{{ v.duration_seconds }}"
+     data-announcements='{{ ANNOUNCEMENTS|tojson }}' class="space-y-3">
+  <div id="announcement" role="status" class="hidden items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-900"></div>
+  <div id="room">{% include "practice/_room.html" %}</div>
+
+  {# Rough-work sheet: not graded or saved, like the margins of the booklet. #}
+  <div id="rough-pad" class="fixed inset-x-0 bottom-0 z-40 hidden border-t border-slate-300 bg-white shadow-2xl" role="dialog" aria-label="Rough work">
+    <div class="flex items-center gap-2 border-b border-slate-200 px-3 py-1.5 text-sm">
+      <p class="font-semibold">Rough work</p>
+      <p class="hidden text-xs text-slate-500 sm:block">Not graded or saved, like the margins of the booklet.</p>
+      <div class="ml-auto flex gap-1.5">
+        <button type="button" class="btn-ghost !py-1" data-rough="erase" aria-pressed="false">Eraser</button>
+        <button type="button" class="btn-ghost !py-1" data-rough="clear">Clear</button>
+        <button type="button" class="btn-secondary !py-1" data-rough="close">Close</button>
+      </div>
+    </div>
+    <canvas class="h-[38vh] w-full touch-none bg-[repeating-linear-gradient(#fffef9,#fffef9_27px,#e2e8f0_28px)]"></canvas>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/exam-room.js" defer></script>{% endblock %}

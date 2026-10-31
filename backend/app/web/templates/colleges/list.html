@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, college_card, empty %}
+{% block title %}Colleges · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-5">
+  {% call page_header("Colleges", "Hospital", "Medical college directory") %}Browse medical and dental colleges. Every figure links back to its source and freshness.{% endcall %}
+  {# Filters update the results in place as you type (HTMX); without JavaScript the form still submits normally. #}
+  <form method="get" action="/colleges" class="card grid gap-3 sm:grid-cols-4"
+        hx-get="/colleges" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-push-url="true"
+        hx-trigger="input changed delay:300ms from:#q, change">
+    <div class="sm:col-span-4"><label class="label" for="q">Search name or city</label>
+      <input id="q" name="q" class="input" value="{{ f.q or '' }}" placeholder="e.g. Government Medical College"></div>
+    <div><label class="label" for="st">State</label>
+      <select id="st" name="state" class="input"><option value="">All</option>{% for s in facets.states %}<option {{ 'selected' if f.state == s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div><label class="label" for="co">Course</label>
+      <select id="co" name="course" class="input"><option value="">All</option>{% for s in ["MBBS", "BDS"] %}<option {{ 'selected' if f.course == s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div><label class="label" for="it">Type</label>
+      <select id="it" name="institution_type" class="input capitalize"><option value="">All</option>{% for s in facets.institution_types %}<option {{ 'selected' if f.institution_type == s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div class="flex items-end"><a class="btn w-full hidden" href="/compare" data-compare-link>Compare (<span data-compare-count>0</span>)</a></div>
+    <noscript><button class="btn sm:col-span-4">Search</button></noscript>
+  </form>
+
+  <div id="results" class="space-y-4">
+    {% if not data["items"] %}
+      {{ empty("No colleges match these filters") }}
+    {% else %}
+      <p class="muted">{{ data.total }} colleges</p>
+      <div class="grid gap-4 md:grid-cols-2">
+        {% for c in data["items"] %}{{ college_card(c, saved=(c.id in saved) if me else None) }}{% endfor %}
+      </div>
+      {% if pages > 1 %}
+        <nav class="flex items-center justify-center gap-3" aria-label="Pagination">
+          {% set base = "/colleges?" ~ query_without_page %}
+          {% if data.page > 1 %}<a class="btn-secondary" href="{{ base }}&page={{ data.page - 1 }}">Previous</a>{% endif %}
+          <span class="text-sm">Page {{ data.page }} of {{ pages }}</span>
+          {% if data.page < pages %}<a class="btn-secondary" href="{{ base }}&page={{ data.page + 1 }}">Next</a>{% endif %}
+        </nav>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/compare-tray.js" defer></script>{% endblock %}

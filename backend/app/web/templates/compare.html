@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice, error_box, empty, status_badge %}
+{% set ROWS = ["Location", "Type", "Approved MBBS intake", "Counselling routes", "AIQ OPEN closing rank (latest)", "Estimated yearly cost",
+  "Estimated full course", "Hostel + mess / year", "Campus hostel", "Hospital beds", "Internship stipend / month", "Student rating",
+  "Nearest railway / airport", "Nearby PGs listed", "Recognition", "Data status", "Data completeness"] %}
+{% macro cell(label, r) -%}
+  {%- if label == "Location" %}{{ [r.city, r.state]|select|join(", ") }}
+  {%- elif label == "Type" %}<span class="capitalize">{{ r.institution_type }}</span>
+  {%- elif label == "Approved MBBS intake" %}{% for y, n in r.intake.items() %}{{ n }} ({{ y }}){{ ", " if not loop.last }}{% else %}—{% endfor %}
+  {%- elif label == "Counselling routes" %}{{ r.counselling_routes|join(", ") or "—" }}
+  {%- elif label == "AIQ OPEN closing rank (latest)" %}{{ ((r.aiq_open_closing.closing_rank|num) ~ " (" ~ r.aiq_open_closing.exam_year ~ ")") if r.aiq_open_closing else "No AIQ data" }}
+  {%- elif label == "Estimated yearly cost" %}{{ r.annual_cost_inr|inr }}{% if r.fee_year %} <span class="text-xs text-slate-500">({{ r.fee_year }})</span>{% endif %}
+  {%- elif label == "Estimated full course" %}{{ r.full_course_cost_inr|inr }}
+  {%- elif label == "Hostel + mess / year" %}{{ r.hostel_mess_annual_inr|inr }}
+  {%- elif label == "Campus hostel" %}{{ "Listed" if r.hostel_on_campus else "No verified info" }}
+  {%- elif label == "Hospital beds" %}{{ r.hospital_beds|num }}
+  {%- elif label == "Internship stipend / month" %}{{ r.internship_stipend_monthly_inr|inr }}
+  {%- elif label == "Student rating" %}{{ (r.avg_rating ~ "/5 (" ~ r.review_count ~ ")") if r.avg_rating else "No reviews" }}
+  {%- elif label == "Nearest railway / airport" %}{{ r.nearest_railway_km if r.nearest_railway_km is not none else "—" }} km / {{ r.nearest_airport_km if r.nearest_airport_km is not none else "—" }} km
+  {%- elif label == "Nearby PGs listed" %}{{ r.nearby_pg_count }}
+  {%- elif label == "Recognition" %}{{ r.recognition_status or "Not verified" }}
+  {%- elif label == "Data status" %}{{ status_badge(r.data_status) }}
+  {%- else %}{{ (r.completeness * 100)|round|int }}%{% endif -%}
+{%- endmacro %}
+{% block title %}Compare colleges · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-5" id="compare-page" data-compare-ids="{{ ids|join(',') }}">
+  {% call page_header("Compare colleges", "Scale", "Side by side") %}Choose what matters to you. We explain who leads on each of <em>your</em> criteria — there is no universal "best" college.{% endcall %}
+  {% if ids|length < 2 %}
+    {% call empty("Add at least two colleges to compare") %}Use “+ Compare” on the <a class="text-teal-700 underline" href="/colleges">college list</a> or in predictor results (up to 5).{% endcall %}
+  {% else %}
+    <form method="get" action="/compare" hx-get="/compare" hx-trigger="change" hx-target="#compare-page" hx-select="#compare-page" hx-swap="outerHTML" hx-push-url="true" class="card">
+      <input type="hidden" name="ids" value="{{ ids|join(',') }}"><input type="hidden" name="set" value="1">
+      <fieldset><legend class="label">Your priorities</legend>
+        <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm">{% for k, label in PRIORITIES.items() %}
+          <label class="flex items-center gap-1.5"><input type="checkbox" name="prio" value="{{ k }}" {{ 'checked' if k in chosen }}>{{ label }}</label>{% endfor %}</div></fieldset>
+      <noscript><button class="btn-secondary mt-2">Update</button></noscript>
+    </form>
+    {{ error_box(error) }}
+    {% if res %}
+      {% if res.any_demo %}{% call notice("warn") %}Includes DEMO colleges — figures are synthetic.{% endcall %}{% endif %}
+      <section class="card">
+        <h2 class="h2">What stands out for your priorities</h2>
+        <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">{% for i in res.insights %}<li>{{ i }}</li>{% endfor %}</ul>
+        <p class="mt-2 text-xs text-slate-500">{{ res.note }}</p>
+      </section>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table class="w-full min-w-[640px] text-left text-sm">
+          <thead><tr class="bg-slate-50"><th class="p-3 text-xs text-slate-500">Criterion</th>
+            {% for c in res.colleges %}
+              {% set rest = ids|reject("equalto", c.id)|join(",") %}
+              <th class="p-3 align-top"><a class="hover:text-teal-700" href="/colleges/{{ c.id }}">{{ c.name }}</a>
+                <a class="mt-1 block text-xs font-normal text-red-700 underline" href="/compare?ids={{ rest }}{% for x in chosen %}&prio={{ x }}{% endfor %}&set=1">Remove</a></th>
+            {% endfor %}</tr></thead>
+          <tbody>{% for label in ROWS %}
+            <tr class="border-t border-slate-100"><th class="p-3 text-xs font-medium text-slate-500">{{ label }}</th>{% for c in res.colleges %}<td class="p-3">{{ cell(label, c) }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/compare-tray.js" defer></script>{% endblock %}

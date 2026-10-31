@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice, error_box, status_badge %}
+{% set READY_STYLE = {"ok": "bg-emerald-100 text-emerald-800", "todo": "bg-red-100 text-red-800", "warn": "bg-amber-100 text-amber-900"} %}
+{% macro form(action, cls="", upload=False) -%}
+<form method="post" action="/admin/{{ tab }}/{{ action }}" hx-post="/admin/{{ tab }}/{{ action }}" hx-target="#admin-page" hx-select="#admin-page" hx-swap="outerHTML"
+      {% if upload %}hx-encoding="multipart/form-data" enctype="multipart/form-data"{% endif %} class="{{ cls }}">{{ caller() }}</form>
+{%- endmacro %}
+{% macro action_button(action, label, fields={}, cls="btn-secondary !px-2 !py-1 text-xs") -%}
+<button class="{{ cls }}" hx-post="/admin/{{ tab }}/{{ action }}" hx-vals='{{ fields|tojson }}' hx-target="#admin-page" hx-select="#admin-page" hx-swap="outerHTML">{{ label }}</button>
+{%- endmacro %}
+{% block title %}Data & admin · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-6" id="admin-page">
+  {% call page_header("Data & admin", "Clipboard", "Administration") %}Imports, source terms, rules, review queues and data quality. Every change is audit-logged.{% endcall %}
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    {% for k, val in [("Colleges", stats.colleges ~ " (" ~ stats.demo_colleges ~ " demo)"), ("Cutoff records", stats.cutoff_records), ("Open issues", stats.open_issues), ("Pending reviews", stats.pending_reviews)] %}
+      <div class="card"><p class="muted">{{ k }}</p><p class="text-xl font-semibold">{{ val }}</p></div>
+    {% endfor %}
+  </div>
+
+  <div role="tablist" aria-label="Admin sections" class="flex gap-1 overflow-x-auto border-b border-slate-200">
+    {% for key, label in TABS %}
+      <a role="tab" href="/admin?tab={{ key }}" hx-get="/admin?tab={{ key }}" hx-target="#admin-page" hx-select="#admin-page" hx-swap="outerHTML" hx-push-url="true"
+         aria-selected="{{ 'true' if tab == key else 'false' }}" class="whitespace-nowrap border-b-2 px-3 py-2 text-sm {{ 'border-teal-700 font-medium text-teal-800' if tab == key else 'border-transparent text-slate-600 hover:text-slate-900' }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  {% if msg %}{% call notice() %}{{ msg }}{% endcall %}{% endif %}
+  {{ error_box(error) }}
+
+  {% if tab == "overview" %}
+    <section class="card">
+      <h2 class="h2 mb-1">Go-live readiness</h2>
+      <p class="muted mb-3">{{ "No blocking items. Review the warnings before launch." if readiness.ready else "Items marked “to do” block real use. Each one is computed from the data and server configuration." }}</p>
+      <ul class="divide-y divide-slate-100 text-sm">
+        {% for i in readiness["items"] %}
+          <li class="flex flex-wrap items-start gap-3 py-2">
+            <span class="w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-medium {{ READY_STYLE[i.status] }}">{{ "to do" if i.status == "todo" else i.status }}</span>
+            <div class="min-w-0 flex-1"><p class="font-medium">{{ i.label }}</p><p class="text-slate-600">{{ i.detail }}</p></div>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+    <p class="text-xs text-slate-500">Cutoffs by status: {% for k, val in stats.cutoffs_by_status.items() %}{{ k }}: {{ val }}{{ " · " if not loop.last }}{% endfor %}</p>
+
+  {% elif tab == "imports" %}
+    <div class="grid gap-4 md:grid-cols-2">
+      {% call form("import", "group card space-y-2", upload=True) %}
+        <h2 class="h2">Import a table (CSV / XLSX)</h2>
+        <select class="input" name="kind" aria-label="Table type">
+          <option value="cutoffs" id="k-cutoffs">Cutoffs / closing ranks</option><option value="seat_matrix">Seat matrix</option><option value="fees">Fees</option></select>
+        <details class="text-xs text-slate-500"><summary class="cursor-pointer">Required columns</summary>
+          <ul class="mt-1 list-disc pl-4">{% for k, cols in TABLE_COLUMNS.items() %}<li><strong>{{ k }}</strong>: {{ cols }}</li>{% endfor %}</ul>
+          <p class="mt-1">Templates are in <code>backend/samples/</code>. Rows start as “unverified”.</p></details>
+        <input class="input" type="file" name="file" accept=".csv,.xlsx" required aria-label="File">
+        <select class="input" name="data_source_code" required aria-label="Data source">
+          <option value="" disabled selected>Data source (terms reviewed)…</option>
+          {% for s in allowed %}<option value="{{ s.code }}">{{ s.code }} — {{ s.name }}</option>{% endfor %}</select>
+        {% if no_real_source %}<p class="text-xs text-amber-800">No real source has its terms of use reviewed yet. Do that on the Sources tab first.</p>{% endif %}
+        <input class="input" name="source_name" placeholder="Document name, e.g. MCC Round 2 allotment 2025" required minlength="3">
+        <input class="input" name="source_url" placeholder="Official URL of this document" type="url">
+        <label class="text-sm">Publication date <input class="input" type="date" name="publication_date"></label>
+        <button class="btn">Import</button>
+      {% endcall %}
+      {% call form("document", "card space-y-2", upload=True) %}
+        <h2 class="h2">Upload an official document (PDF / TXT)</h2>
+        <p class="text-xs text-slate-500">Indexed for the assistant with page references. Scanned pages are OCR'd when Tesseract is installed, and flagged for review.</p>
+        <input class="input" type="file" name="file" accept=".pdf,.txt,.md" required aria-label="Document">
+        <input class="input" name="title" placeholder="Title, e.g. NEET-UG 2026 Information Bulletin" required>
+        <input class="input" name="url" placeholder="Official URL" type="url">
+        <div class="grid grid-cols-3 gap-2">
+          <input class="input" name="authority" placeholder="NTA, MCC…" aria-label="Authority">
+          <input class="input" name="exam_year" type="number" placeholder="Year" aria-label="Exam year">
+          <select class="input" name="doc_type" aria-label="Document type">{% for t in ["notice", "bulletin", "prospectus", "seat_matrix", "scheme"] %}<option>{{ t }}</option>{% endfor %}</select>
+        </div>
+        <label class="text-sm">Publication date <input class="input" type="date" name="publication_date"></label>
+        <button class="btn">Upload</button>
+      {% endcall %}
+    </div>
+    <section class="card">
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 class="h2">Documents</h2>{{ action_button("backfill", "Build semantic index", {}, "btn-secondary") }}</div>
+      <div class="overflow-x-auto"><table class="w-full min-w-[640px] text-left text-sm">
+        <thead class="text-xs text-slate-500"><tr><th>Title</th><th>Type</th><th>Year</th><th>v</th><th>Passages</th><th>Semantic</th><th>OCR</th></tr></thead>
+        <tbody>{% for d in docs %}
+          <tr class="border-t border-slate-100"><td class="py-1">{{ d.title }}</td><td>{{ d.doc_type }}</td><td>{{ d.exam_year or "—" }}</td><td>{{ d.version }}</td><td>{{ d.chunks }}</td>
+            <td>{{ d.embedded }}/{{ d.chunks }}</td><td>{% if d.needs_ocr %}{{ action_button("ocr", "Run OCR", {"id": d.id}) }}{% else %}—{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+    <section class="card">
+      <h2 class="h2 mb-2">Recent imports</h2>
+      <div class="overflow-x-auto"><table class="w-full min-w-[600px] text-left text-sm">
+        <thead class="text-xs text-slate-500"><tr><th>#</th><th>Kind</th><th>File</th><th>Status</th><th>Read</th><th>New</th><th>Updated</th><th>Skipped</th><th>When</th></tr></thead>
+        <tbody>{% for j in jobs %}
+          <tr class="border-t border-slate-100 align-top"><td class="py-1">{{ j.id }}</td><td>{{ j.kind }}</td><td>{{ j.filename }}</td>
+            <td>{{ j.status }}{% if j.errors %}<details><summary class="cursor-pointer text-xs text-red-700">{{ j.errors|length }} errors</summary>
+              <ul class="text-xs">{% for e in j.errors[:10] %}<li>Row {{ e.row if e.row is not none else "–" }}: {{ e.error }}</li>{% endfor %}</ul></details>{% endif %}</td>
+            <td>{{ j.rows_read }}</td><td>{{ j.inserted }}</td><td>{{ j.updated }}</td><td>{{ j.skipped }}</td><td>{{ j.started_at|date }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+
+  {% elif tab == "sources" %}
+    {% call notice() %}Record the outcome of reading each source's terms of use before importing from it. Imports are refused for sources that are not marked “allowed”. This records your decision; it is not legal advice.{% endcall %}
+    <ul class="space-y-3">
+      {% for s in sources %}
+        <li class="card text-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div><p class="font-medium">{{ s.code }} — {{ s.name }}</p>
+              <p class="text-slate-600">{{ s.kind|replace("_", " ") }} · {% if s.base_url %}<a class="underline" href="{{ s.base_url }}" target="_blank" rel="noreferrer">{{ s.base_url }}</a>{% else %}no URL{% endif %}</p></div>
+            {{ status_badge(s.usage_status) }}
+          </div>
+          {% if s.terms_note %}<p class="mt-1 text-slate-700">{{ s.terms_note }}</p>{% endif %}
+          {% if s.terms_reviewed_at %}<p class="text-xs text-slate-500">Reviewed {{ s.terms_reviewed_at|date }}{% if s.terms_url %} · <a class="underline" href="{{ s.terms_url }}" target="_blank" rel="noreferrer">terms</a>{% endif %}</p>{% endif %}
+          {% if s.kind != "demo" %}
+            <details class="mt-2"><summary class="btn-secondary !inline-flex !px-2 !py-1 cursor-pointer">Review terms</summary>
+              {% call form("terms", "mt-3 grid gap-2 sm:grid-cols-2") %}
+                <input type="hidden" name="id" value="{{ s.id }}">
+                <select class="input" name="usage_status" aria-label="Usage status">{% for st in ["allowed", "restricted", "prohibited", "unreviewed"] %}<option {{ 'selected' if s.usage_status == st }}>{{ st }}</option>{% endfor %}</select>
+                <input class="input" name="terms_url" type="url" placeholder="Link to the terms / copyright policy" value="{{ s.terms_url or '' }}">
+                <textarea class="input sm:col-span-2" name="terms_note" required minlength="10" rows="3" placeholder="What the terms allow (reuse, attribution, automated access) and who reviewed them">{{ s.terms_note or "" }}</textarea>
+                <input class="input" name="attribution_text" placeholder="Required attribution text, if any" value="{{ s.attribution_text or '' }}">
+                <label class="flex items-center gap-2"><input type="checkbox" name="automated" {{ 'checked' if s.automated_access_permitted }}> Automated downloading permitted</label>
+                <button class="btn sm:col-span-2">Save review</button>
+              {% endcall %}
+            </details>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    {% call form("source", "card grid gap-2 sm:grid-cols-4") %}
+      <h2 class="h2 sm:col-span-4">Add a data source</h2>
+      <input class="input" name="code" placeholder="Code, e.g. AACCC" required pattern="[A-Za-z0-9_\-]+">
+      <input class="input" name="name" placeholder="Name" required minlength="3">
+      <select class="input" name="kind" aria-label="Kind"><option value="official_portal">official portal</option><option value="college_site">college website</option><option value="licensed_api">licensed API</option><option value="other">other</option></select>
+      <input class="input" name="base_url" type="url" placeholder="Website">
+      <button class="btn sm:col-span-4">Add source</button>
+    {% endcall %}
+
+  {% elif tab == "rules" %}
+    {% call notice() %}Without a <em>verified</em> “open_category_accessible” rule, reserved-category students are only compared with their own category's cutoffs. Enter each rule from the official counselling scheme for that authority and year, then verify it after checking the source.{% endcall %}
+    <section class="card">
+      <h2 class="h2 mb-2">Missing rules ({{ r.gaps|length }})</h2>
+      {% if not r.gaps %}<p class="muted">Every authority/year/quota with real cutoffs has a verified rule.</p>{% else %}
+        <ul class="flex flex-wrap gap-2 text-sm">{% for g in r.gaps %}
+          <li><a class="btn-secondary !px-2 !py-1" href="/admin?tab=rules&prefill={{ g.authority_id }}|{{ g.exam_year }}|{{ g.quota }}#rule-form">{{ g.authority }} {{ g.exam_year }} {{ g.quota }}</a></li>{% endfor %}</ul>
+      {% endif %}
+    </section>
+    {% set pf = prefill or {} %}
+    {% call form("rule", "card grid gap-2 sm:grid-cols-3") %}
+      <h2 class="h2 sm:col-span-3" id="rule-form">Enter a rule</h2>
+      <select class="input" name="authority_id" required aria-label="Authority"><option value="" disabled {{ 'selected' if not pf.authority_id }}>Authority…</option>
+        {% for a in r.authorities %}<option value="{{ a.id }}" {{ 'selected' if pf.authority_id == a.id }}>{{ a.code }}</option>{% endfor %}</select>
+      <input class="input" name="exam_year" type="number" required placeholder="Exam year" value="{{ pf.exam_year or '' }}">
+      <input class="input" name="quota" required placeholder="Quota (AIQ, STATE… or * for all)" value="{{ pf.quota or '' }}">
+      <select class="input" name="rule_key" aria-label="Rule">{% for k in r.known_rules %}<option>{{ k }}</option>{% endfor %}</select>
+      <select class="input" name="value" aria-label="Value"><option value="true">true / allowed</option><option value="false">false / not allowed</option><option>AIR</option><option>STATE_RANK</option></select>
+      <input class="input" name="publication_date" type="date" aria-label="Publication date">
+      <input class="input sm:col-span-3" name="source_name" required minlength="3" placeholder="Source document, e.g. MCC UG counselling scheme 2025, clause 7">
+      <input class="input sm:col-span-3" name="source_url" type="url" required placeholder="Official URL">
+      <input class="input sm:col-span-3" name="description" placeholder="Note (optional)">
+      <button class="btn sm:col-span-3">Save rule</button>
+    {% endcall %}
+    <section class="card">
+      <h2 class="h2 mb-2">Rules</h2>
+      {% if not r.rules %}<p class="muted">No real rules entered yet (demo rules are hidden).</p>{% else %}
+        <div class="overflow-x-auto"><table class="w-full min-w-[640px] text-left text-sm">
+          <thead class="text-xs text-slate-500"><tr><th>Authority</th><th>Year</th><th>Quota</th><th>Rule</th><th>Value</th><th>Source</th><th>Status</th><th></th></tr></thead>
+          <tbody>{% for x in r.rules %}
+            <tr class="border-t border-slate-100"><td class="py-1">{{ x.authority }}</td><td>{{ x.exam_year }}</td><td>{{ x.quota }}</td><td>{{ x.rule_key }}</td><td>{{ x.value }}</td>
+              <td>{% if x.source_url %}<a class="underline" href="{{ x.source_url }}" target="_blank" rel="noreferrer">{{ x.source_name }}</a>{% else %}{{ x.source_name }}{% endif %}</td>
+              <td>{{ status_badge(x.verification_status) }}</td>
+              <td>{% if x.verification_status != "verified" %}{{ action_button("verify", "Verify", {"entity_type": "eligibility_rule", "id": x.id}) }}{% endif %}</td></tr>{% endfor %}</tbody>
+        </table></div>
+      {% endif %}
+    </section>
+
+  {% elif tab == "info" %}
+    {% call notice() %}Check each page against the current NTA Information Bulletin (upload it on the Imports tab first). Set the exam year and source, edit the text if needed, then mark it verified. Any later edit sends it back for review.{% endcall %}
+    <ul class="space-y-2">
+      {% for a in articles %}
+        <li class="card text-sm">
+          <details {{ 'open' if open_id == a.id }}>
+            <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
+              <span class="font-medium hover:underline">{{ a.section }} · {{ a.title }}</span>
+              <span class="flex items-center gap-2"><span class="text-xs text-slate-500">{{ a.exam_year or "no year" }}</span>{{ status_badge(a.verification_status) }}</span></summary>
+            {% call form("article", "mt-3 space-y-2") %}
+              <input type="hidden" name="id" value="{{ a.id }}">
+              <input class="input" name="title" value="{{ a.title }}" required aria-label="Title">
+              <textarea class="input" name="body" rows="8" required aria-label="Body">{{ a.body }}</textarea>
+              <div class="grid gap-2 sm:grid-cols-4">
+                <input class="input" name="exam_year" type="number" placeholder="Exam year checked" value="{{ a.exam_year or '' }}" aria-label="Exam year">
+                <input class="input" name="source_name" placeholder="Source" value="{{ a.source_name }}" aria-label="Source name">
+                <input class="input" name="source_url" type="url" placeholder="Bulletin URL" value="{{ a.source_url or '' }}" aria-label="Source URL">
+                <input class="input" name="source_document_id" type="number" placeholder="Document # (optional)" value="{{ a.source_document_id or '' }}" aria-label="Source document id">
+              </div>
+              <div class="flex gap-2">
+                <button class="btn-secondary">Save changes</button>
+                {{ action_button("verify", "Mark verified", {"entity_type": "info_article", "id": a.id}, "btn") }}
+              </div>
+            {% endcall %}
+          </details>
+        </li>
+      {% endfor %}
+    </ul>
+
+  {% elif tab == "colleges" %}
+    {% call form("college", "card grid gap-2 sm:grid-cols-3") %}
+      <h2 class="h2 sm:col-span-3">Add a real college</h2>
+      <p class="text-xs text-slate-500 sm:col-span-3">Use the official name and the code your counselling data uses. Add every spelling used in allotment lists as an alias (separate with ;) so imports can match it.</p>
+      <input class="input" name="code" required placeholder="Stable code">
+      <input class="input sm:col-span-2" name="name" required placeholder="Official name">
+      <input class="input" name="state" required placeholder="State">
+      <input class="input" name="city" placeholder="City">
+      <select class="input" name="institution_type" aria-label="Institution type">{% for t in ["government", "private", "deemed", "central", "aiims", "esic", "afmc"] %}<option>{{ t }}</option>{% endfor %}</select>
+      <input class="input" name="latitude" type="number" step="any" placeholder="Latitude (verified)">
+      <input class="input" name="longitude" type="number" step="any" placeholder="Longitude (verified)">
+      <input class="input" name="website" type="url" placeholder="Official website">
+      <input class="input sm:col-span-3" name="aliases" placeholder="Aliases; separated; by semicolons">
+      <input class="input" name="source_name" required minlength="3" placeholder="Source, e.g. NMC college list">
+      <input class="input sm:col-span-2" name="source_url" type="url" placeholder="Source URL">
+      <button class="btn sm:col-span-3">Add college</button>
+    {% endcall %}
+    {% call form("nearby", "card flex flex-wrap items-end gap-2") %}
+      <div class="flex-1"><h2 class="h2">Refresh nearby places</h2>
+        <p class="text-xs text-slate-500">Fetches transport, pharmacies, hospitals, banks and shops around the college's coordinates from OpenStreetMap (needs PLACES_PROVIDER=overpass). Demo colleges are skipped.</p></div>
+      <input class="input !w-32" name="id" type="number" required placeholder="College #" aria-label="College id">
+      <button class="btn">Refresh</button>
+    {% endcall %}
+
+  {% elif tab == "issues" %}
+    <section class="card">
+      <h2 class="h2 mb-2">Open data-quality issues</h2>
+      {% if not issues %}<p class="muted">No open issues.</p>{% else %}
+        <ul class="divide-y divide-slate-100 text-sm">{% for i in issues %}
+          <li class="flex flex-wrap items-start justify-between gap-2 py-2">
+            <div class="min-w-0"><p class="font-medium">{{ i.issue_type|replace("_", " ") }} · {{ i.entity_type }}{% if i.entity_id %} #{{ i.entity_id }}{% endif %}</p>
+              <pre class="mt-1 max-w-xl overflow-x-auto whitespace-pre-wrap text-xs text-slate-600">{{ i.details|tojson(indent=1) }}</pre></div>
+            <div class="flex gap-2">{{ action_button("issue", "Resolve", {"id": i.id, "status": "resolved"}, "btn-secondary") }}{{ action_button("issue", "Ignore", {"id": i.id, "status": "ignored"}, "btn-secondary") }}</div>
+          </li>{% endfor %}</ul>
+      {% endif %}
+    </section>
+    <section class="card">
+      <h2 class="h2 mb-2">Reviews awaiting moderation</h2>
+      {% if not reviews %}<p class="muted">Queue is empty.</p>{% else %}
+        <ul class="divide-y divide-slate-100 text-sm">{% for r in reviews %}
+          <li class="py-2"><p>College #{{ r.college_id }} · {{ r.rating }}★</p><p class="text-slate-700">{{ r.body }}</p>
+            <div class="mt-1 flex gap-2">{{ action_button("review", "Approve", {"id": r.id, "status": "approved"}, "btn-secondary") }}{{ action_button("review", "Reject", {"id": r.id, "status": "rejected"}, "btn-secondary") }}</div></li>{% endfor %}</ul>
+      {% endif %}
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

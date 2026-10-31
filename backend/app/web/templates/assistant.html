@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% from "_ui.html" import error_box, status_badge %}
+{% from "_icons.html" import icon %}
+{% set swap = 'hx-target="#assistant-app" hx-select="#assistant-app" hx-swap="outerHTML"' %}
+{% block title %}NEET assistant · NEET Compass{% endblock %}
+{% block content %}
+<div id="assistant-app" class="group relative h-[calc(100dvh-8.5rem)] min-h-[540px] lg:h-[calc(100dvh-10rem)]"
+     data-chat="{{ current.id if current else '' }}">
+  {# Mobile history drawer opens with a checkbox (no script). #}
+  <input type="checkbox" id="drawer" class="peer sr-only">
+  <label for="drawer" aria-label="Close chat history" class="fixed inset-0 z-40 hidden cursor-default bg-slate-900/40 backdrop-blur-[2px] peer-checked:block lg:!hidden"></label>
+
+  <div class="grid h-full min-h-0 gap-4 lg:grid-cols-[288px_minmax(0,1fr)]">
+    <aside aria-label="Chat history" class="fixed inset-y-0 left-0 z-50 flex w-[86%] max-w-[320px] -translate-x-full flex-col overflow-hidden rounded-r-2xl border-r border-slate-200 bg-white shadow-2xl transition-transform duration-200 group-has-[#drawer:checked]:translate-x-0 lg:static lg:z-auto lg:w-auto lg:max-w-none lg:translate-x-0 lg:rounded-2xl lg:border lg:shadow-sm">
+      <div class="flex items-center gap-2.5 px-3 py-3">
+        <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-teal-400 via-teal-600 to-indigo-600 text-white shadow-md shadow-teal-900/20">{{ icon("CompassCross", "h-4.5 w-4.5") }}</span>
+        <div class="min-w-0 flex-1">
+          <p class="font-display text-[13px] font-extrabold leading-tight text-slate-900">Your chats</p>
+          <p class="text-[11px] text-slate-500">{{ chats|length }} saved · private to you</p>
+        </div>
+        <label for="drawer" aria-label="Close chat history" class="cursor-pointer rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 lg:hidden">{{ icon("X", "h-4 w-4") }}</label>
+      </div>
+      <div class="space-y-2 px-3 pb-2">
+        <a href="/assistant" class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm shadow-teal-900/20 transition hover:-translate-y-0.5 hover:shadow-md">{{ icon("Plus", "h-4 w-4") }} New chat</a>
+        <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-1.5 focus-within:border-teal-400 focus-within:bg-white">
+          {{ icon("Search", "h-3.5 w-3.5 shrink-0 text-slate-400") }}
+          <input name="q" value="{{ q }}" placeholder="Search your chats" aria-label="Search your chats" autocomplete="off"
+                 hx-get="/assistant" hx-trigger="input changed delay:300ms" hx-vals='{"chat": "{{ current.id if current else '' }}"}'
+                 hx-target="#chat-list" hx-select="#chat-list" hx-swap="outerHTML"
+                 class="w-full bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-400">
+        </label>
+      </div>
+      <div id="chat-list" class="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        {% if not groups %}
+          <div class="mx-1 mt-2 rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center">
+            {{ icon("MessageSquare", "mx-auto h-5 w-5 text-slate-300") }}
+            <p class="mt-2 text-xs font-medium text-slate-500">{{ "No chats match that search." if q else "No chats yet" }}</p>
+            <p class="mt-0.5 text-[11px] text-slate-400">{{ "Try a different word." if q else "Ask your first question to start one." }}</p>
+          </div>
+        {% endif %}
+        {% for label, items in groups %}
+          <div class="mt-3 first:mt-1">
+            <p class="px-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{{ label }}</p>
+            <ul class="space-y-0.5">
+              {% for c in items %}
+                {% set active = current and c.id == current.id %}
+                <li class="group relative">
+                  <a href="/assistant?chat={{ c.id }}" {% if active %}aria-current="true"{% endif %}
+                     class="flex w-full items-start gap-2 rounded-xl px-2.5 py-2 pr-9 text-left transition {{ 'bg-teal-50 ring-1 ring-teal-200' if active else 'hover:bg-slate-50' }}">
+                    {{ icon("MessageSquare", "mt-[3px] h-3.5 w-3.5 shrink-0 " ~ ("text-teal-600" if active else "text-slate-400")) }}
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-[13px] font-semibold {{ 'text-teal-900' if active else 'text-slate-700' }}">{{ (c.title or "").strip() or "New chat" }}</span>
+                      <span class="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400"><span>{{ c.updated_at|ist_short }}, {{ c.updated_at|ist_clock }}</span><span aria-hidden="true">·</span><span>{{ c.message_count }} msg</span></span>
+                    </span>
+                  </a>
+                  <button type="button" hx-post="/assistant/{{ c.id }}/delete" hx-vals='{"current": "{{ current.id if current else '' }}"}' {{ swap|safe }}
+                          hx-confirm="Delete this chat? This cannot be undone." aria-label="Delete chat: {{ c.title or 'New chat' }}"
+                          class="absolute right-1.5 top-2 rounded-md p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100">{{ icon("Trash", "h-3.5 w-3.5") }}</button>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="border-t border-slate-100 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5">
+        <p class="flex items-center gap-1.5 text-[11px] text-slate-500">{{ icon("Check", "h-3 w-3 text-emerald-600") }} Chats are saved to your account</p>
+      </div>
+    </aside>
+
+    <section class="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header class="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5 sm:px-4">
+        <label for="drawer" aria-label="Open chat history" class="-ml-1 cursor-pointer rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden">{{ icon("PanelLeft", "h-5 w-5") }}</label>
+        <div class="min-w-0 flex-1">
+          <h1 class="truncate font-display text-sm font-extrabold tracking-tight text-slate-900">{{ ((current.title or "").strip() if current else "") or "NEET assistant" }}</h1>
+          <p class="truncate text-[11px] text-slate-500">{{ current.created_at|ist_long if current else "Cutoffs, counselling, fees and your mock scores" }}</p>
+        </div>
+        <span class="hidden items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-100 sm:inline-flex">{{ icon("Sparkle", "h-3 w-3") }} Sources included</span>
+      </header>
+
+      <div id="chat-log" role="log" aria-live="polite" class="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6">
+        {% if not messages %}
+          <div class="mx-auto flex min-h-full max-w-2xl flex-col items-center justify-center py-2 text-center" id="welcome">
+            <img id="mascot" src="/static/mascot/idle.webp" alt="Assistant mascot, waiting for your question" style="height: 126px; width: auto" class="select-none drop-shadow-xl" draggable="false">
+            <h2 class="mt-2 font-display text-xl font-extrabold tracking-tight text-slate-900 sm:mt-3 sm:text-2xl">How can I help you today?</h2>
+            <p id="mascot-line" class="mt-1 max-w-md text-[13px] leading-relaxed text-slate-500">Ask me anything about NEET-UG — cutoffs, colleges, counselling or your own mock scores.</p>
+            <div class="mt-4 grid w-full gap-2 sm:mt-5 sm:grid-cols-2">
+              {% for text, tag in SUGGESTIONS %}
+                <button type="button" data-suggest="{{ text }}"
+                        class="group {{ 'hidden sm:flex' if loop.index0 >= 3 else 'flex' }} items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-sm sm:px-3.5 sm:py-3">
+                  <span class="min-w-0 flex-1"><span class="block text-[10px] font-bold uppercase tracking-[0.1em] text-teal-600">{{ tag }}</span>
+                    <span class="mt-0.5 block text-[13px] font-medium leading-snug text-slate-700">{{ text }}</span></span>
+                  {{ icon("Send", "h-4 w-4 shrink-0 rotate-90 text-slate-300 transition group-hover:text-teal-600") }}
+                </button>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+        <div class="mx-auto flex max-w-3xl flex-col gap-5" id="messages">
+          {% for m in messages %}
+            {% if m.role == "user" %}
+              <div class="flex flex-col items-end">
+                <div class="max-w-[85%] rounded-2xl rounded-br-md bg-teal-700 px-4 py-2.5 text-[14px] leading-relaxed text-white shadow-sm">{{ m.content|chat_text }}</div>
+                <span class="mt-1 pr-1 text-[10px] text-slate-400">{{ m.created_at|ist_clock }}</span>
+              </div>
+            {% else %}
+              <div class="flex gap-2.5" data-msg {% if loop.last and speak %}data-speak{% endif %}>
+                <img src="/static/mascot/avatar-circle.png" alt="" aria-hidden="true" class="h-7 w-7 shrink-0 rounded-full ring-1 ring-sky-200">
+                <div class="min-w-0 flex-1">
+                  <div class="text-[14px] leading-relaxed text-slate-700" data-answer>{{ m.content|chat_text }}</div>
+                  {% if m.citations %}
+                    <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
+                      <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Sources</p>
+                      <ul class="mt-1 space-y-1">{% for c in m.citations %}
+                        <li class="flex flex-wrap items-center gap-1.5 text-[12px] text-slate-600"><span class="h-1 w-1 rounded-full bg-teal-500"></span>
+                          {% if c.url %}<a class="font-medium text-teal-700 underline decoration-teal-300 underline-offset-2 hover:text-teal-800" href="{{ c.url }}" target="_blank" rel="noreferrer">{{ c.source_name }}</a>{% else %}<span class="font-medium">{{ c.source_name }}</span>{% endif %}
+                          {% if c.year %}<span class="text-slate-400">· {{ c.year }}</span>{% endif %}{% if c.page %}<span class="text-slate-400">· p.{{ c.page }}</span>{% endif %}
+                          {% if c.verification_status %}{{ status_badge(c.verification_status) }}{% endif %}</li>{% endfor %}</ul>
+                    </div>
+                  {% endif %}
+                  <div class="mt-1.5 flex flex-wrap items-center gap-3 text-[10px] text-slate-400">
+                    <span>{{ m.created_at|ist_clock }}</span>
+                    {% if m.tool_calls %}<span>Looked up: {{ m.tool_calls|unique|join(", ")|replace("_", " ") }}</span>{% endif %}
+                    <button type="button" data-read-aloud class="hidden items-center gap-1 font-semibold text-teal-700 hover:text-teal-800">{{ icon("Volume", "h-3 w-3") }} Read aloud</button>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          {% endfor %}
+          <div id="typing" class="htmx-indicator hidden items-center gap-2.5 text-sm text-slate-500 [&.htmx-request]:flex">
+            <img src="/static/mascot/avatar-circle.png" alt="" aria-hidden="true" class="h-7 w-7 rounded-full ring-1 ring-sky-200">
+            <span class="flex items-center gap-1.5 rounded-2xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/70"><span class="sr-only">Looking that up</span>
+              {% for d in [0, 150, 300] %}<span class="h-1.5 w-1.5 animate-bounce rounded-full bg-teal-500" style="animation-delay: {{ d }}ms"></span>{% endfor %}</span>
+          </div>
+        </div>
+        {{ error_box(error) }}
+      </div>
+
+      <div class="border-t border-slate-100 px-3 pb-3 pt-2.5 sm:px-5">
+        <form id="composer" class="mx-auto max-w-3xl" method="post" action="/assistant/send" hx-post="/assistant/send" {{ swap|safe }}
+              hx-indicator="#typing" hx-disabled-elt="find button[type=submit]">
+          <input type="hidden" name="session_id" value="{{ current.id if current else '' }}">
+          <input type="hidden" name="voice" value="">
+          <div class="flex items-end gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm transition focus-within:border-teal-400 focus-within:ring-4 focus-within:ring-teal-500/10">
+            <label for="q" class="sr-only">Your question</label>
+            <textarea id="q" name="content" rows="1" maxlength="4000" required placeholder="Ask anything about NEET-UG…"
+                      class="max-h-40 min-h-[38px] flex-1 resize-none bg-transparent px-2.5 py-2 text-[14px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400"></textarea>
+            <button type="button" data-mic aria-pressed="false" aria-label="Ask by voice" class="hidden h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-teal-700">{{ icon("Mic", "h-4.5 w-4.5") }}</button>
+            <button type="submit" aria-label="Send message" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-teal-700 text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300">{{ icon("Send", "h-4 w-4") }}</button>
+          </div>
+          <div class="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[11px] text-slate-500">
+            <span class="hidden items-center gap-1 sm:flex"><kbd class="rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[10px]">Enter</kbd> to send ·
+              <kbd class="rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[10px]">Shift + Enter</kbd> for a new line</span>
+            <span class="sm:hidden">Answers can be wrong — check official sources.</span>
+            <span class="flex flex-wrap items-center gap-x-3 gap-y-1" data-voice-controls hidden>
+              <label class="flex items-center gap-1.5"><span class="sr-only">Voice language</span>
+                <select data-voice-lang class="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] text-slate-600">
+                  <option value="en-IN">English (India)</option><option value="hi-IN">हिन्दी (Hindi)</option></select></label>
+              <label class="flex items-center gap-1.5"><input type="checkbox" data-read-toggle class="h-3.5 w-3.5 accent-teal-700" checked> Read aloud</label>
+              <label class="flex items-center gap-1.5"><input type="checkbox" data-hands-free class="h-3.5 w-3.5 accent-teal-700"> Hands-free</label>
+              <button type="button" data-stop-speaking class="hidden font-semibold text-teal-700 hover:underline">Stop speaking</button>
+            </span>
+          </div>
+          <p data-voice-status class="mt-1 hidden text-[11px] font-medium text-teal-700"></p>
+        </form>
+        <p class="mx-auto mt-1 hidden max-w-3xl text-[10px] leading-relaxed text-slate-400 sm:block">
+          Answers come from our college database, the predictor and official documents — each with its source. This is
+          guidance, not a guarantee; confirm anything important with NTA, MCC or your state authority.
+        </p>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/assistant.js" defer></script>{% endblock %}

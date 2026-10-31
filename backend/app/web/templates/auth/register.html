@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_ui.html" import error_box %}
+{% block title %}Create your account · NEET Compass{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-md">
+  <h1 class="h1 mb-1">Create your account</h1>
+  <p class="muted mb-4">We only ask for what we need. You can export or delete your data at any time.</p>
+  <form method="post" action="/register" class="group card space-y-4">
+    <div><label class="label" for="email">Email</label><input class="input" id="email" name="email" type="email" required autocomplete="email" value="{{ form.email or '' }}"></div>
+    <div><label class="label" for="password">Password (min. 8 characters)</label><input class="input" id="password" name="password" type="password" minlength="8" required autocomplete="new-password"></div>
+    <fieldset>
+      <legend class="label">Are you under 18?</legend>
+      <div class="flex gap-4 text-sm">
+        <label class="flex items-center gap-2"><input type="radio" id="minor-yes" name="minor" value="yes" required {{ 'checked' if form.minor == 'yes' }}> Yes</label>
+        <label class="flex items-center gap-2"><input type="radio" name="minor" value="no" {{ 'checked' if form.minor == 'no' }}> No</label>
+      </div>
+    </fieldset>
+    {# Shown only when "Yes" is chosen — pure CSS, no script. #}
+    <div class="hidden space-y-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 group-has-[#minor-yes:checked]:block">
+      <label class="label !text-amber-900" for="guardian_email">Parent or guardian's email</label>
+      <input class="input" id="guardian_email" name="guardian_email" type="email" value="{{ form.guardian_email or '' }}">
+      <p>We'll email them a link to review what we collect and give consent. Until they do, we won't store your
+        profile, ranks, mock tests or chats. Without consent the account is deleted after 7 days.</p>
+    </div>
+    <label class="flex items-start gap-2 text-sm text-slate-700">
+      <input type="checkbox" name="privacy" required class="mt-1">
+      <span>I have read the privacy notice: my marks, rank and category are private, used only for my guidance, never
+        shown publicly or sold, and I can delete them any time.</span>
+    </label>
+    {{ error_box(error) }}
+    <button class="btn w-full">Create account</button>
+  </form>
+  <p class="muted mt-3">Already registered? <a class="text-teal-700 underline" href="/login">Sign in</a></p>
+</div>
+{% endblock %}

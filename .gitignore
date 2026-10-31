@@ -1,19 +1,13 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+*.log
 backend/.env
+backend/.env.production
 backend/*.db
 backend/storage/
-frontend/node_modules/
-frontend/.next/
-frontend/.env*.local
-
-# Playwright
-frontend/.next-e2e/
-frontend/test-results/
-frontend/playwright-report/
+# browser tests (throwaway database and Playwright output)
 backend/.e2e/
+backend/test-results/
 deploy/.env
-backend/.env.production
-frontend/tsconfig.tsbuildinfo
-*.log

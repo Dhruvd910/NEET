@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "_ui.html" import error_box %}
+{% block title %}Parent or guardian consent · NEET Compass{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-2xl">
+{% if done %}
+  <div class="card">
+    <h1 class="h1 mb-2">{{ "Thank you — consent recorded" if done == "verified" else "Consent declined" }}</h1>
+    <p class="muted">{% if done == "verified" %}The student can now use all features. You or the student can download or
+      delete the data at any time from the profile page.{% else %}We will not store any personal data for this account,
+      and it will be deleted automatically.{% endif %}</p>
+  </div>
+{% elif not info %}
+  {{ error_box(error or "This consent link is invalid or has expired. The student can send a new one.") }}
+{% else %}
+  <form method="post" action="/guardian-consent" class="card space-y-4">
+    <input type="hidden" name="token" value="{{ token }}">
+    <h1 class="h1">Parent or guardian consent</h1>
+    <p>A student account (<strong>{{ info.student_email }}</strong>) named you as their parent or guardian. Because the
+      student is under 18, we need your consent before we store their personal information.</p>
+    <section>
+      <h2 class="h2 mb-1">What we would store</h2>
+      <ul class="list-disc space-y-1 pl-5 text-sm text-slate-700">
+        <li><strong>Account:</strong> Email address and password (stored as a one-way hash).</li>
+        <li><strong>Profile:</strong> Class, state, domicile, preferred courses and states, budget. Category and PwD status only if the student enters them, used only to compare with the matching cutoffs.</li>
+        <li><strong>Exam data:</strong> NEET rank or an estimated rank range, and mock-test scores the student enters.</li>
+        <li><strong>Usage:</strong> Saved colleges, comparisons, draft preference lists, practice tests and assistant chats.</li>
+      </ul>
+    </section>
+    <section class="text-sm text-slate-700">
+      <h2 class="h2 mb-1">How it is used</h2>
+      <p>Only to give this student guidance: college matching against past cutoffs, cost estimates, mock-test trends and
+        answers from official documents. It is never sold, never shown publicly and never used for advertising or
+        tracking. The student (or you) can download or permanently delete it at any time.</p>
+    </section>
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div><label class="label" for="guardian_name">Your full name</label>
+        <input class="input" id="guardian_name" name="guardian_name" required minlength="2" maxlength="120"></div>
+      <div><label class="label" for="relationship">Relationship to the student</label>
+        <select class="input" id="relationship" name="relationship" required>
+          <option value="" disabled selected>Choose…</option><option>mother</option><option>father</option><option>legal guardian</option>
+        </select></div>
+    </div>
+    <label class="flex items-start gap-2 text-sm">
+      <input type="checkbox" name="confirm" required class="mt-1">
+      I am this student's parent or legal guardian, and I have read the above (notice version {{ info.notice_version }}).
+    </label>
+    {{ error_box(error) }}
+    <div class="flex flex-wrap gap-2">
+      <button class="btn" name="decision" value="approve">I give consent</button>
+      <button class="btn-secondary" name="decision" value="decline">I do not consent</button>
+    </div>
+  </form>
+{% endif %}
+</div>
+{% endblock %}

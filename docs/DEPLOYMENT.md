@@ -1,11 +1,10 @@
 # Deployment
 
-A single-host Docker deployment: **Caddy** (automatic HTTPS) → **Next.js** web app → **FastAPI** API →
-**PostgreSQL** and **Redis**. Files are in `deploy/`. Only Caddy is exposed to the internet. The web app
-proxies `/api` to the API, so the session cookie stays first-party.
+A single-host Docker deployment: **Caddy** (automatic HTTPS) → the **FastAPI** app, which serves both the website
+and `/api` → **PostgreSQL** and **Redis**. Files are in `deploy/`. Only Caddy is exposed to the internet.
 
 > These files have not been run against a live server yet. Docker was not available on the build
-> machine. The API and web app themselves are tested (`pytest`, Playwright, `next build`).
+> machine. The app itself is tested (`pytest` and Playwright browser tests).
 
 ## 1. Prepare the host
 
@@ -63,12 +62,12 @@ Then sign in, open **/admin → Overview** and work through the go-live readines
 # Keep a buffer of fresh practice questions (students also trigger top-ups automatically; this smooths peaks)
 0 3 * * * cd /srv/neet && docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env exec -T api python -m app.maintenance grow-question-bank --per-section 50
 # Nightly backup
-15 2 * * * cd /srv/neet && sh deploy/backup.sh >> /var/log/neet-backup.log 2>&1
+15 2 * * * cd /srv/neet && python3 deploy/backup.py >> /var/log/neet-backup.log 2>&1
 ```
 
 ## 5. Backups and restore
 
-`deploy/backup.sh` writes a `pg_dump` (custom format) and a tarball of stored source files to `BACKUP_DIR`,
+`deploy/backup.py` (standard library only) writes a `pg_dump` (custom format) and a tarball of stored source files to `BACKUP_DIR`,
 keeping 14 days. Copy that folder off the host to encrypted object storage.
 
 Restore drill (do it monthly, on a scratch host):
@@ -96,9 +95,8 @@ Deleted accounts remain in backups until those backups age out (14 days by defau
 - Semantic search keeps vectors in a JSON column and ranks in Python. That is fine up to tens of thousands of
   passages. Beyond that, move them to a `pgvector` column with an HNSW index; only
   `backend/app/services/retrieval.py` changes.
-- The web image bakes in the API address at build time (`API_ORIGIN` build arg).
 - Maps load tiles from `tile.openstreetmap.org` by default. That server is for light use only. For production
-  traffic, set `NEXT_PUBLIC_MAP_TILE_URL` and `NEXT_PUBLIC_MAP_ATTRIBUTION` (build-time) to a tile provider you
+  traffic, set `MAP_TILE_URL` and `MAP_ATTRIBUTION` to a tile provider you
   have a plan with.
 
 ## Security checklist

@@ -11,12 +11,10 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 COPY . .
 
-# (sed strips Windows line endings, which would break the start script on Linux)
-RUN useradd --create-home --uid 10001 app && mkdir -p /data/storage && chown -R app /data \
- && sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
+RUN useradd --create-home --uid 10001 app && mkdir -p /data/storage && chown -R app /data
 USER app
 ENV STORAGE_DIR=/data/storage
 EXPOSE 8000
 
-# Migrates, optionally seeds (SEED_ON_START), then serves on $PORT (default 8000). See docker-entrypoint.sh.
-CMD ["./docker-entrypoint.sh"]
+# Migrates, optionally seeds (SEED_ON_START), then serves the website and API on $PORT (default 8000). See start.py.
+CMD ["python", "start.py"]

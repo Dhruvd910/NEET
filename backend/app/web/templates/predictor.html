@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice, error_box, fit_badge, status_badge, loading %}
+{% set QUOTAS = [("AIQ", "All India Quota (MCC)"), ("STATE", "State quota (needs domicile)"), ("DEEMED", "Deemed universities (MCC)"), ("CENTRAL", "Central universities (MCC)"), ("MANAGEMENT", "Private management quota")] %}
+{% block title %}College predictor · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  {% call page_header("College predictor", "Target", "Historical cutoff match") %}
+    We compare your rank with past final-round closing ranks for the <em>same</em> counselling route, quota, category and
+    seat type. Results are guidance labels — not chances, and never guarantees.
+  {% endcall %}
+  {% if prefilled %}{% call notice() %}Filled in from your profile. Changes here are not saved.{% endcall %}{% endif %}
+
+  <form method="post" action="/predictor" hx-post="/predictor" hx-target="#results" hx-select="#results" hx-swap="outerHTML" hx-indicator="#predict-loading"
+        class="group card grid gap-4 md:grid-cols-3">
+    <div><label class="label" for="course">Course</label>
+      <select id="course" name="course_code" class="input">{% for c in ["MBBS", "BDS"] %}<option {{ 'selected' if f.course_code == c }}>{{ c }}</option>{% endfor %}</select></div>
+    <div><label class="label" for="year">NEET year</label><input id="year" name="exam_year" type="number" class="input" value="{{ f.exam_year }}"></div>
+    <fieldset><legend class="label">Rank type</legend>
+      <div class="flex gap-3 text-sm">
+        <label class="flex items-center gap-1.5"><input type="radio" name="rank_type" value="official" {{ 'checked' if f.rank_type != 'estimated' }}>Official</label>
+        <label class="flex items-center gap-1.5"><input type="radio" id="rank-estimated" name="rank_type" value="estimated" {{ 'checked' if f.rank_type == 'estimated' }}>Estimated</label>
+      </div></fieldset>
+    {# Official rank fields, or a best/worst-case range when "Estimated" is chosen (CSS only). #}
+    <div class="group-has-[#rank-estimated:checked]:hidden"><label class="label" for="air">All India Rank</label><input id="air" name="air" type="number" min="1" class="input" value="{{ f.air or '' }}"></div>
+    <div class="group-has-[#rank-estimated:checked]:hidden"><label class="label" for="sr">State rank (for state quota, if published)</label><input id="sr" name="state_rank" type="number" min="1" class="input" value="{{ f.state_rank or '' }}"></div>
+    <div class="hidden group-has-[#rank-estimated:checked]:block"><label class="label" for="lo">Best-case AIR</label><input id="lo" name="air_low" type="number" min="1" class="input" value="{{ f.air_low or '' }}"></div>
+    <div class="hidden group-has-[#rank-estimated:checked]:block"><label class="label" for="hi">Worst-case AIR</label><input id="hi" name="air_high" type="number" min="1" class="input" value="{{ f.air_high or '' }}"></div>
+    <div><label class="label" for="cat">Category</label>
+      <select id="cat" name="category" class="input"><option value="">Not provided (OPEN)</option>{% for c in CATEGORIES %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select></div>
+    <div><label class="label" for="dom">Domicile state</label>
+      <select id="dom" name="domicile_state" class="input"><option value="">Not provided</option>{% for s in STATES %}<option {{ 'selected' if f.domicile_state == s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div><label class="label" for="budget">Max yearly budget ₹ (optional)</label><input id="budget" name="budget_max_annual" type="number" min="0" step="10000" class="input" value="{{ f.budget_max_annual or '' }}"></div>
+    <fieldset class="md:col-span-3"><legend class="label">Counselling routes to include</legend>
+      <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm">{% for q, l in QUOTAS %}
+        <label class="flex items-center gap-1.5"><input type="checkbox" name="quotas" value="{{ q }}" {{ 'checked' if q in f.quotas }}>{{ l }}</label>{% endfor %}</div></fieldset>
+    <fieldset class="md:col-span-2"><legend class="label">Institution types (none = all)</legend>
+      <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm">{% for t in ["government", "central", "private", "deemed"] %}
+        <label class="flex items-center gap-1.5 capitalize"><input type="checkbox" name="institution_types" value="{{ t }}" {{ 'checked' if t in f.institution_types }}>{{ t }}</label>{% endfor %}</div></fieldset>
+    <div class="flex flex-col gap-2 text-sm">
+      <label class="flex items-center gap-1.5"><input type="checkbox" name="pwd" value="1" {{ 'checked' if f.pwd }}>PwD candidate</label>
+      <label class="flex items-center gap-1.5"><input type="checkbox" name="hostel_required" value="1" {{ 'checked' if f.hostel_required }}>I need a hostel</label>
+    </div>
+    <div class="md:col-span-3"><button class="btn">Show historical matches</button></div>
+  </form>
+  {{ loading("Comparing with past closing ranks…", "predict-loading") }}
+
+  <div id="results">
+    {{ error_box(error) }}
+    {% if res %}
+    <section class="space-y-5">
+      {% call notice("warn") %}<strong>Important:</strong> {{ res.disclaimer }}{% endcall %}
+      {% for c in res.caveats %}{% call notice() %}{{ c }}{% endcall %}{% endfor %}
+      <p class="muted">{{ res.method }}</p>
+      {% if res.counts.values()|sum == 0 %}<p class="card">No colleges matched. Try adding more counselling routes, removing filters, or checking your rank.</p>{% endif %}
+      {% for label, rows in res.groups.items() if rows %}
+        <div>
+          <h2 class="h2 mb-2">{{ label }} <span class="text-sm font-normal text-slate-500">({{ rows|length }})</span></h2>
+          <div class="grid gap-3">
+          {% for r in rows %}
+            <article class="card">
+              <div class="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <a href="/colleges/{{ r.college_id }}" class="font-semibold hover:text-teal-700">{{ r.college_name }}</a>
+                  <p class="text-sm text-slate-600">{{ [r.city, r.state]|select|join(", ") }} · <span class="capitalize">{{ r.institution_type }}</span> · {{ r.course_code }}</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">{{ fit_badge(r.historical_fit) }}{% if r.is_demo %}{{ status_badge("demo") }}{% endif %}</div>
+              </div>
+              <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+                <div><dt class="text-slate-500">Counselling</dt><dd>{{ r.counselling_authority }} · {{ r.quota }}</dd></div>
+                <div><dt class="text-slate-500">Category compared</dt><dd>{{ r.category_used }}{% if r.seat_type != "GENERAL" %} · {{ r.seat_type }}{% endif %}</dd></div>
+                <div><dt class="text-slate-500">Your rank</dt><dd>{{ r.student_rank_display }}</dd></div>
+                <div><dt class="text-slate-500">Confidence</dt><dd class="capitalize" title="{{ r.confidence_reason }}">{{ r.confidence }}</dd></div>
+                <div><dt class="text-slate-500">Est. yearly cost</dt><dd>{{ r.estimated_annual_cost_inr|inr }}{% if r.fee_academic_year %}<span class="text-xs text-slate-500"> ({{ r.fee_academic_year }})</span>{% endif %}</dd></div>
+                <div><dt class="text-slate-500">Campus hostel</dt><dd>{{ "Listed" if r.hostel_on_campus else "No verified info" }}</dd></div>
+              </dl>
+              <p class="mt-3 text-sm text-slate-800">{{ r.explanation }}</p>
+              <p class="mt-1 text-xs text-slate-500">Confidence: {{ r.confidence_reason }}</p>
+              {% if r.caveats %}<ul class="mt-2 list-disc pl-5 text-xs text-amber-800">{% for c in r.caveats %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+              <details class="mt-3">
+                <summary class="cursor-pointer text-sm font-medium text-teal-800">Historical cutoffs & sources</summary>
+                <div class="mt-2 overflow-x-auto">
+                  <table class="w-full min-w-[520px] text-left text-sm">
+                    <thead class="text-xs text-slate-500"><tr><th class="py-1">Year</th><th>Round 1 closing</th><th>Final round</th><th>Opening</th><th>Closing ({{ "AIR" if r.rank_basis == "AIR" else "state rank" }})</th><th>Source</th></tr></thead>
+                    <tbody>{% for h in r.history %}
+                      <tr class="border-t border-slate-100"><td class="py-1">{{ h.exam_year }}</td><td>{{ h.first_round_closing_rank|num }}</td><td>{{ h.final_round_name or ("Round " ~ h.final_round) }}</td>
+                        <td>{{ h.opening_rank|num }}</td><td class="font-medium">{{ h.closing_rank|num }}</td>
+                        <td class="text-xs">{% if h.source_url %}<a class="underline" href="{{ h.source_url }}" target="_blank" rel="noreferrer">{{ h.source_name }}</a>{% else %}{{ h.source_name }}{% endif %} {{ status_badge(h.verification_status) }}</td></tr>{% endfor %}</tbody>
+                  </table>
+                </div>
+              </details>
+              <div class="mt-3 flex gap-2">
+                <button class="btn-secondary" type="button" data-compare="{{ r.college_id }}">+ Compare</button>
+                {% if me %}<button class="btn-secondary" hx-post="/saved/{{ r.college_id }}/toggle" hx-swap="outerHTML">{{ "★ Saved" if r.college_id in saved else "☆ Save" }}</button>{% endif %}
+              </div>
+            </article>
+          {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+      {% if res.excluded %}
+        <details class="card text-sm">
+          <summary class="cursor-pointer font-medium">Why some options are not shown</summary>
+          <ul class="mt-2 list-disc pl-5 text-slate-700">{% for e in res.excluded %}<li>{{ e.count }} × {{ e.reason }}</li>{% endfor %}</ul>
+        </details>
+      {% endif %}
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/compare-tray.js" defer></script>{% endblock %}

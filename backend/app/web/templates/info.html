@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice, source %}
+{% block title %}{{ title }} · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-5">
+  {% call page_header(title, icon_name, eyebrow) %}{{ intro }}{% endcall %}
+  {% call notice(tone) %}{{ warning }}{% endcall %}
+  <div class="space-y-3">
+    {% for a in articles %}
+      <details class="card group" {{ 'open' if articles|length <= 2 }}>
+        <summary class="cursor-pointer list-none font-semibold text-slate-900">
+          <span class="mr-2 inline-block transition group-open:rotate-90">›</span>{{ a.title }}
+          {% if a.exam_year %}<span class="ml-2 text-xs font-normal text-slate-500">NEET {{ a.exam_year }}</span>{% endif %}
+        </summary>
+        <div class="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{{ a.body }}</div>
+        {{ source(a, "mt-3") }}
+      </details>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -7,4 +7,5 @@ __pycache__
 storage
 .e2e
 tests
+e2e
 .pytest_cache

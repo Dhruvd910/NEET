@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, empty, college_card %}
+{% block title %}Dashboard · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  {% call page_header("Hello, future Dr." ~ ((" " ~ profile.display_name) if profile and profile.display_name else ""), "Stethoscope", "Future doctor's desk") %}
+    Your NEET journey at a glance.
+  {% endcall %}
+
+  {% if not profile %}
+    {% call empty("Complete your profile to personalise everything") %}<a class="text-teal-700 underline" href="/profile">Set up your profile</a>{% endcall %}
+  {% endif %}
+
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="card">
+      <p class="muted">NEET {{ exam.exam_year if exam else "" }}</p>
+      <p class="mt-1 text-2xl font-semibold">{{ ("AIR " ~ (exam.air|num)) if exam and exam.air else "No rank yet" }}</p>
+      <p class="text-xs text-slate-500">{% if exam and exam.air %}{{ "Official rank" if exam.rank_type.value == "official" else "Estimated" }}{% else %}<a class="underline" href="/profile">Add NEET details</a>{% endif %}</p>
+      <a href="/predictor" class="btn mt-3">Check college matches</a>
+    </div>
+    <div class="card">
+      <p class="muted">Mock tests</p>
+      {% if mocks.count %}
+        <p class="mt-1 text-2xl font-semibold">{{ mocks.latest_percent }}% <span class="text-sm font-normal text-slate-500">latest</span></p>
+        <p class="text-xs text-slate-500">Average {{ mocks.average_percent }}% · trend {{ mocks.trend.direction if mocks.trend else "—" }}</p>
+      {% else %}<p class="mt-1 text-sm">No tests logged yet.</p>{% endif %}
+      <div class="mt-3 flex flex-wrap gap-2">
+        <a href="/practice" class="btn">Take a test</a>
+        <a href="/study-plan" class="btn-secondary">Study plan</a>
+        <a href="/mock-tests" class="btn-secondary">Tracker</a>
+      </div>
+    </div>
+    <div class="card">
+      <p class="muted">Shortlist</p>
+      <p class="mt-1 text-2xl font-semibold">{{ saved|length }} colleges</p>
+      <a href="/compare?ids={{ saved|map(attribute='college')|map(attribute='id')|join(',') }}" class="btn-secondary mt-3">Compare</a>
+    </div>
+  </div>
+
+  <section class="card" id="roadmap">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="h2">Your roadmap</h2>
+      <button class="btn-secondary" hx-post="/roadmap/generate" hx-target="#roadmap" hx-select="#roadmap" hx-swap="outerHTML"
+              hx-disabled-elt="this">{{ "Refresh suggestions" if roadmap else "Generate my roadmap" }}</button>
+    </div>
+    {% if roadmap %}
+      <ul class="mt-3 divide-y divide-slate-100">
+        {% for i in roadmap %}
+          <li class="flex flex-wrap items-start justify-between gap-2 py-2">
+            <div>
+              <p class="font-medium {{ 'text-slate-400 line-through' if i.status == 'done' }}">{{ i.title }} <span class="ml-1 rounded bg-slate-100 px-1.5 text-xs font-normal capitalize text-slate-600">{{ i.kind }}</span></p>
+              {% if i.detail %}<p class="text-sm text-slate-600">{{ i.detail }}</p>{% endif %}
+            </div>
+            <select name="status" aria-label="Status of {{ i.title }}" class="input !w-auto"
+                    hx-post="/roadmap/{{ i.id }}" hx-trigger="change" hx-target="#roadmap" hx-select="#roadmap" hx-swap="outerHTML">
+              {% for v, l in [("todo", "To do"), ("doing", "Doing"), ("done", "Done")] %}<option value="{{ v }}" {{ 'selected' if i.status == v }}>{{ l }}</option>{% endfor %}
+            </select>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted mt-2">Generate a roadmap based on your profile and mock tests. Official dates are never guessed — each step points to the authority that announces them.</p>
+    {% endif %}
+  </section>
+
+  {% if saved %}
+    <section>
+      <h2 class="h2 mb-3">Saved colleges</h2>
+      <div class="grid gap-4 md:grid-cols-2">{% for s in saved %}{{ college_card(s.college, saved=True) }}{% endfor %}</div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/js/compare-tray.js" defer></script>{% endblock %}

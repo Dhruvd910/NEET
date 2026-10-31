@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% from "_ui.html" import error_box %}
+{% block title %}Sign in · NEET Compass{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-sm">
+  <h1 class="h1 mb-4">Sign in</h1>
+  <form method="post" action="/login" class="card space-y-3">
+    <input type="hidden" name="next" value="{{ next or '/dashboard' }}">
+    <div><label class="label" for="email">Email</label><input class="input" id="email" name="email" type="email" required autocomplete="email" value="{{ email or '' }}"></div>
+    <div><label class="label" for="password">Password</label><input class="input" id="password" name="password" type="password" required autocomplete="current-password"></div>
+    {{ error_box(error) }}
+    <button class="btn w-full">Sign in</button>
+  </form>
+  <p class="muted mt-3">New here? <a class="text-teal-700 underline" href="/register">Create an account</a></p>
+</div>
+{% endblock %}

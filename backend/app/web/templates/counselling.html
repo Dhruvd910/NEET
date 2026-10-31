@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice, error_box, fit_badge, status_badge, source %}
+{% block title %}Counselling centre · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-8">
+  {% call page_header("Counselling centre", "BadgeId", "Admissions desk") %}How seat allotment works, what to prepare, and a draft preference list you stay in control of.{% endcall %}
+
+  <section>
+    <h2 class="h2 mb-3">Counselling authorities</h2>
+    <div class="grid gap-3 sm:grid-cols-2">{% for a in authorities %}
+      <div class="card text-sm">
+        <p class="font-semibold">{{ a.name }} <span class="text-xs font-normal text-slate-500">({{ a.code }})</span></p>
+        <p class="text-slate-600">{{ "All-India counselling" if a.level == "central" else "State counselling — " ~ a.state }} · Quotas: {{ a.quotas|join(", ") }}</p>
+        {% if a.website %}<a class="text-teal-700 underline" href="{{ a.website }}" target="_blank" rel="noreferrer">Official website</a>{% endif %}
+      </div>{% endfor %}</div>
+  </section>
+
+  <section>
+    <h2 class="h2 mb-3">Guides</h2>
+    <div class="space-y-3">{% for a in articles %}
+      <details class="card group">
+        <summary class="cursor-pointer list-none font-semibold text-slate-900"><span class="mr-2 inline-block transition group-open:rotate-90">›</span>{{ a.title }}</summary>
+        <div class="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{{ a.body }}</div>
+        {{ source(a, "mt-3") }}
+      </details>{% endfor %}</div>
+  </section>
+
+  {# The whole builder is one form; each button sends an `op` (build, move, remove, save). #}
+  <section class="space-y-4" id="draft-builder">
+    <h2 class="h2">Draft preference list</h2>
+    {% call notice("warn") %}This tool never submits anything. You must enter and lock your final choices yourself on the official counselling portal.{% endcall %}
+    <form method="post" action="/counselling/draft#draft-builder" hx-post="/counselling/draft" hx-target="#draft-builder" hx-select="#draft-builder" hx-swap="outerHTML" class="space-y-4">
+      <div class="card grid gap-3 sm:grid-cols-3">
+        <div><label class="label" for="auth">Counselling authority</label>
+          <select id="auth" name="authority" class="input">{% for a in authorities %}<option {{ 'selected' if f.authority == a.code }}>{{ a.code }}</option>{% endfor %}</select></div>
+        <div><label class="label" for="air">Official AIR</label><input id="air" name="air" type="number" min="1" class="input" value="{{ f.air }}"></div>
+        <div><label class="label" for="sr">State rank</label><input id="sr" name="state_rank" type="number" min="1" class="input" value="{{ f.state_rank }}"></div>
+        <div><label class="label" for="cat">Category</label><select id="cat" name="category" class="input"><option value="">OPEN / not provided</option>{% for c in CATEGORIES if c != "OPEN" %}<option {{ 'selected' if f.category == c }}>{{ c }}</option>{% endfor %}</select></div>
+        <div><label class="label" for="dom">Domicile</label><select id="dom" name="domicile" class="input"><option value="">—</option>{% for s in STATES %}<option {{ 'selected' if f.domicile == s }}>{{ s }}</option>{% endfor %}</select></div>
+        <div><label class="label" for="yr">NEET year</label><input id="yr" name="year" type="number" class="input" value="{{ f.year }}"></div>
+        <div class="sm:col-span-3">
+          <p class="label">Order your priorities (top = most important)</p>
+          <ol class="space-y-1 text-sm">{% for pr in f.priorities %}
+            <li class="flex items-center gap-2"><input type="hidden" name="priorities" value="{{ pr }}"><span class="w-5 text-slate-500">{{ loop.index }}.</span>{{ PRIORITY_LABELS[pr] }}
+              <button name="op" value="prio:{{ loop.index0 }}:-1" class="text-xs underline" aria-label="Move up">↑</button>
+              <button name="op" value="prio:{{ loop.index0 }}:1" class="text-xs underline" aria-label="Move down">↓</button></li>{% endfor %}</ol>
+        </div>
+        <div class="sm:col-span-3">{{ error_box(error) }}<button name="op" value="build" class="btn mt-1">Build draft</button></div>
+      </div>
+      {% if msg %}{% call notice() %}{{ msg }}{% endcall %}{% endif %}
+
+      {% if draft %}
+        <input type="hidden" name="draft_json" value="{{ draft|tojson|forceescape }}">
+        <div class="card space-y-3">
+          <p class="text-sm">{{ draft.ordering_explained }}</p>
+          {% if not draft["items"] %}<p class="text-sm">No historically matching colleges for this authority. Try another authority or check your rank.</p>{% else %}
+            <ol class="divide-y divide-slate-100 text-sm">{% for it in draft["items"] %}
+              <li class="flex flex-wrap items-center gap-2 py-2">
+                <span class="w-6 font-semibold">{{ loop.index }}.</span>
+                <a class="flex-1 hover:text-teal-700" href="/colleges/{{ it.college_id }}">{{ it.college_name }}</a>
+                <span class="text-xs text-slate-500">{{ it.quota }}</span>
+                {% if it.historical_fit %}{{ fit_badge(it.historical_fit) }}{% endif %}
+                <span class="text-xs">{{ it.estimated_annual_cost_inr|inr }}</span>
+                {% if it.note %}<span class="w-full pl-8 text-xs text-amber-800">{{ it.note }}</span>{% endif %}
+                <span class="flex gap-1">
+                  <button name="op" value="item:{{ loop.index0 }}:-1" class="btn-secondary !px-2 !py-0.5" aria-label="Move up">↑</button>
+                  <button name="op" value="item:{{ loop.index0 }}:1" class="btn-secondary !px-2 !py-0.5" aria-label="Move down">↓</button>
+                  <button name="op" value="item:{{ loop.index0 }}:x" class="btn-secondary !px-2 !py-0.5" aria-label="Remove">✕</button></span>
+              </li>{% endfor %}</ol>
+          {% endif %}
+          <p class="text-xs text-slate-500">{{ draft.disclaimer }}</p>
+          {% if can_save %}<button name="op" value="save" class="btn" {{ 'disabled' if not draft["items"] }}>Save draft</button>
+          {% else %}<p class="text-sm"><a class="text-teal-700 underline" href="/login?next=/counselling">Sign in</a> to save your draft.</p>{% endif %}
+        </div>
+      {% endif %}
+    </form>
+
+    {% if lists %}
+      <div>
+        <h2 class="h2 mb-3">Your saved draft lists</h2>
+        {% for l in lists %}
+          <div class="card mb-3 text-sm">
+            <div class="flex items-center justify-between"><p class="font-semibold">{{ l.name }} {{ status_badge("unverified") }}</p>
+              <button class="text-xs text-red-700 underline" hx-post="/counselling/lists/{{ l.id }}/delete" hx-confirm="Delete this draft list?" hx-target="#draft-builder" hx-select="#draft-builder" hx-swap="outerHTML">Delete</button></div>
+            <ol class="mt-2 list-decimal pl-6">{% for i in l["items"] %}<li>{{ i.college_name }} · {{ i.quota }}</li>{% endfor %}</ol>
+            <p class="mt-2 text-xs text-amber-800">{{ l.notice }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

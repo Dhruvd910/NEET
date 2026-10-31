@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice, error_box, empty %}
+{% set swap = 'hx-target="#mock-page" hx-select="#mock-page" hx-swap="outerHTML"' %}
+{% block title %}Mock-test tracker · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-6" id="mock-page">
+  {% call page_header("Mock-test tracker", "HeartPulse", "Score vitals") %}Log every full-length test to see trends and where to focus.{% endcall %}
+  {% call notice() %}{{ data.notice }}{% endcall %}
+
+  <details class="group" {{ 'open' if open_form }}>
+    <summary class="btn list-none">
+      <span class="group-open:hidden">+ Add a test</span><span class="hidden group-open:inline">Close</span></summary>
+    <form method="post" action="/mock-tests" hx-post="/mock-tests" {{ swap|safe }} class="card mt-3 grid gap-3 sm:grid-cols-3">
+      <div><label class="label" for="name">Test name</label><input id="name" name="name" required class="input" placeholder="Full syllabus test 3"></div>
+      <div><label class="label" for="provider">Provider (optional)</label><input id="provider" name="provider" class="input"></div>
+      <div><label class="label" for="test_date">Date</label><input id="test_date" name="test_date" type="date" required class="input" max="{{ today }}"></div>
+      <div><label class="label" for="total_score">Total score</label><input id="total_score" name="total_score" type="number" required class="input"></div>
+      <div><label class="label" for="max_score">Out of</label><input id="max_score" name="max_score" type="number" value="720" class="input"></div>
+      <div><label class="label" for="percentile">Provider percentile (optional)</label><input id="percentile" name="percentile" type="number" step="0.01" class="input"></div>
+      {% for s, max in SUBJECTS %}
+        <div class="space-y-1">
+          <label class="label" for="{{ s }}">{{ s }} (out of {{ max }})</label><input id="{{ s }}" name="{{ s }}" type="number" class="input">
+          <input name="{{ s }}-topics" class="input" placeholder="Topics to revisit, comma-separated" aria-label="{{ s }} topics to revisit">
+        </div>
+      {% endfor %}
+      <div class="sm:col-span-3"><label class="label" for="notes">Notes</label><textarea id="notes" name="notes" class="input" rows="2"></textarea></div>
+      <div class="sm:col-span-3">{{ error_box(error) }}<button class="btn mt-2">Save test</button></div>
+    </form>
+  </details>
+
+  {% if not data.count %}
+    {% call empty("No mock tests yet") %}Add your first test to see your progress.{% endcall %}
+  {% else %}
+    <div class="grid gap-4 sm:grid-cols-4">
+      {% for l, v in [("Latest", data.latest_percent), ("Best", data.best_percent), ("Average", data.average_percent)] %}
+        <div class="card"><p class="muted">{{ l }}</p><p class="text-2xl font-semibold">{{ v }}%</p></div>
+      {% endfor %}
+      <div class="card"><p class="muted">Trend (last 3 vs earlier)</p>
+        <p class="text-2xl font-semibold capitalize">{{ data.trend.direction if data.trend else "—" }}</p>
+        {% if data.trend %}<p class="text-xs text-slate-500">{{ "+" if data.trend.change_points > 0 }}{{ data.trend.change_points }} points</p>{% endif %}</div>
+    </div>
+
+    <section class="card">
+      <h2 class="h2 mb-3">Score history (% of maximum)</h2>
+      <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" class="h-auto w-full" role="img" aria-label="Line chart of mock-test scores over time">
+        {% for g in chart.grid %}
+          <line x1="{{ chart.left }}" x2="{{ chart.right }}" y1="{{ g.y }}" y2="{{ g.y }}" stroke="#e2e8f0" stroke-dasharray="3 3"/>
+          <text x="{{ chart.left - 6 }}" y="{{ g.y + 4 }}" text-anchor="end" font-size="11" fill="#64748b">{{ g.label }}</text>
+        {% endfor %}
+        {% for l in chart.xlabels %}<text x="{{ l.x }}" y="{{ chart.baseline + 18 }}" text-anchor="middle" font-size="11" fill="#64748b">{{ l.label }}</text>{% endfor %}
+        {% for s in chart.series %}
+          <polyline points="{{ s.points }}" fill="none" stroke="{{ s.color }}" stroke-width="{{ 3 if not s.dashed else 1.5 }}" {{ 'stroke-dasharray="4 3"'|safe if s.dashed }} stroke-linejoin="round"/>
+          {% for d in s.dots %}<circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ 3.5 if not s.dashed else 2.5 }}" fill="{{ s.color }}"><title>{{ s.name }}: {{ d.v }}%</title></circle>{% endfor %}
+        {% endfor %}
+      </svg>
+      <div class="mt-2 flex flex-wrap gap-4 text-xs text-slate-600">
+        {% for s in chart.series %}<span class="flex items-center gap-1.5"><span class="inline-block h-0.5 w-4" style="background: {{ s.color }}"></span>{{ s.name }}</span>{% endfor %}
+      </div>
+    </section>
+
+    <div class="grid gap-4 md:grid-cols-2">
+      <section class="card">
+        <h2 class="h2">Subjects</h2>
+        <table class="mt-2 w-full text-left text-sm"><thead class="text-xs text-slate-500"><tr><th>Subject</th><th>Average</th><th>Latest</th><th>Best</th></tr></thead>
+          <tbody>{% for s, v in data.subjects.items()|sort(attribute="1.average_percent") %}
+            <tr class="border-t border-slate-100"><td class="py-1">{{ s }}</td><td>{{ v.average_percent }}%</td><td>{{ v.latest_percent }}%</td><td>{{ v.best_percent }}%</td></tr>{% endfor %}</tbody></table>
+      </section>
+      <section class="card">
+        <h2 class="h2">Suggested revision priorities</h2>
+        <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">{% for p in data.priorities %}<li>{{ p }}</li>{% endfor %}</ul>
+      </section>
+    </div>
+
+    {% if data.estimate %}
+      <section class="card border-amber-300">
+        <h2 class="h2">{{ data.estimate.label }}</h2>
+        <p class="mt-1 text-lg">Recent range: <strong>{{ data.estimate.score_band_out_of_720[0] }}–{{ data.estimate.score_band_out_of_720[1] }}</strong> / 720</p>
+        <ul class="mt-2 list-disc pl-5 text-xs text-slate-600">{% for a in data.estimate.assumptions %}<li>{{ a }}</li>{% endfor %}</ul>
+      </section>
+    {% endif %}
+
+    <section class="card">
+      <h2 class="h2 mb-2">All tests</h2>
+      <ul class="divide-y divide-slate-100 text-sm">
+        {% for h in data.history|reverse %}
+          <li class="flex items-center justify-between py-2">
+            <span>{{ h.test_date|date }} · {{ h.name }}{% if h.provider %} ({{ h.provider }}){% endif %} — <strong>{{ h.total_score }}/{{ h.max_score }}</strong></span>
+            <button class="text-xs text-red-700 underline" hx-delete="/mock-tests/{{ h.id }}" hx-confirm="Delete this test?" {{ swap|safe }}>Delete</button>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% from "_ui.html" import subject_badge %}
+{% from "_icons.html" import icon %}
+{# While fresh questions are being written, this card refreshes itself so students see the counts grow. #}
+<div class="card relative overflow-hidden" id="readiness" {% if r.generating %}hx-get="/practice/readiness" hx-trigger="every 6s" hx-swap="outerHTML"{% endif %}>
+  <div aria-hidden="true" class="med-pattern pointer-events-none absolute inset-0 opacity-50 [mask-image:linear-gradient(to_left,black,transparent_70%)]"></div>
+  <div class="relative">
+    <h2 class="h2">Fresh questions waiting for you</h2>
+    <p class="muted mt-0.5">Questions you have not seen in any earlier test. Papers never repeat a question.</p>
+    <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {% for s in SECTIONS %}
+        <div class="rounded-xl border border-slate-200 bg-white/80 p-3">{{ subject_badge(s) }}<p class="mt-2 text-2xl font-bold tabular-nums">{{ r.unseen.get(s, 0) }}</p></div>
+      {% endfor %}
+    </div>
+    <p class="mt-3 text-sm text-slate-700"><strong>{{ r.full_mocks_available }}</strong> full mock{{ "" if r.full_mocks_available == 1 else "s" }} of never-seen questions ready.
+      {% if r.generating %}<span class="ml-2 inline-flex items-center gap-1.5 text-teal-700">{{ icon("HeartPulse", "h-4 w-4 animate-pulse") }}Writing and double-checking more…</span>{% endif %}</p>
+    <p class="mt-2 text-xs text-slate-500">New questions are written by AI and kept only when a second, independent AI gets the same answer. They are not yet expert-reviewed, so report anything that looks wrong from your result page.</p>
+  </div>
+</div>

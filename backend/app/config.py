@@ -18,9 +18,9 @@ class Settings(BaseSettings):
     jwt_expiry_minutes: int = 60 * 24
     cookie_secure: bool = False
     storage_dir: Path = BASE_DIR / "storage"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = []  # the website is served by this app, so no other origin needs access
     # Public URL of the web app, used in emailed links (guardian consent).
-    public_app_url: str = "http://localhost:3000"
+    public_app_url: str = "http://localhost:8000"
     log_json: bool = False
 
     # Rate limits: requests per minute per client IP. Set REDIS_URL to share counts across workers.
@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     places_provider: str = "none"
     overpass_url: str = "https://overpass-api.de/api/interpreter"
     places_user_agent: str = "NEETCompass/0.2 (admin-triggered refresh; contact: set PLACES_USER_AGENT)"
+    # Map tiles on the "Around campus" tab. tile.openstreetmap.org is for light use only; set your provider in production.
+    map_tile_url: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    map_attribution: str = "© OpenStreetMap contributors"
 
     # Email (guardian consent links). "console" logs the email instead of sending it.
     email_backend: str = "console"

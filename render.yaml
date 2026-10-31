@@ -1,9 +1,10 @@
-# Render Blueprint for the API (free plan). Render reads this when you choose New → Blueprint.
+# Render Blueprint for NEET Compass (free plan): one Python service serves the website and the API.
+# Render reads this when you choose New → Blueprint.
 # Values marked `sync: false` are secrets you type into the Render dashboard; they are never stored here.
 # See docs/FREE_HOSTING.md.
 services:
   - type: web
-    name: neet-compass-api
+    name: neet-compass
     runtime: docker
     plan: free
     region: singapore          # closest Render region to India
@@ -22,9 +23,7 @@ services:
         value: "true"
       - key: TRUST_PROXY_HEADERS
         value: "true"
-      - key: PUBLIC_APP_URL          # your Vercel address, e.g. https://neet-compass.vercel.app
-        sync: false
-      - key: CORS_ORIGINS            # same address as a JSON list, e.g. ["https://neet-compass.vercel.app"]
+      - key: PUBLIC_APP_URL          # the site's address, e.g. https://neet-compass.onrender.com or https://www.yourdomain.in
         sync: false
       - key: SEED_ON_START           # "demo" shows the labelled demo data; "reference" for an empty catalogue
         value: demo

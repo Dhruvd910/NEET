@@ -6,6 +6,8 @@ pydantic==2.14.1
 pydantic-settings==2.16.2
 PyJWT==2.15.1
 python-multipart==0.0.32
+# Website: server-rendered pages
+Jinja2==3.1.6
 openpyxl==3.1.5
 pypdf==6.21.4
 anthropic==2.3.0
@@ -18,5 +20,8 @@ redis==8.1.0
 pypdfium2==5.14.0
 pytesseract==0.3.13
 pillow==13.0.0
-# dev / test
+# dev / test (browser tests: pytest-playwright, then `python -m playwright install chromium`;
+# rebuilding the stylesheet: pytailwindcss, see app/web/build_css.py)
 pytest==9.2.0
+pytest-playwright==0.10.0
+pytailwindcss==0.4.2

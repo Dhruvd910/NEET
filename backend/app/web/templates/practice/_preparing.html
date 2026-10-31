@@ -1,0 +1,9 @@
+{% from "_ui.html" import loading %}
+{# Posts the same choices again every 10 seconds until the paper is ready; the server then redirects to it. #}
+<div class="rounded-xl border border-teal-200 bg-teal-50/60 p-4 text-sm text-teal-900" role="status"
+     hx-post="/practice/prepare" hx-trigger="load delay:10s" hx-include="find input" hx-target="#prepare-status">
+  {% for k, val in values %}<input type="hidden" name="{{ k }}" value="{{ val }}">{% endfor %}
+  {{ loading("Writing and double-checking fresh questions for your paper…") }}
+  <p>{{ detail }}</p>
+  <p class="mt-1 text-xs">Keep this page open: your admit card opens automatically when the paper is ready.</p>
+</div>

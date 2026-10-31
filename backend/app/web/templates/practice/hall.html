@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice, subject_badge %}
+{% from "_icons.html" import icon %}
+{% block title %}NEET practice tests · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  {% call page_header("NEET practice tests", "Clipboard", "Exam hall") %}
+    Real exam-day practice: admit card, instructions, a sealed booklet and an OMR sheet. Every paper is made of
+    questions you have <strong>never seen before</strong>.
+  {% endcall %}
+
+  {% if in_progress %}
+    {% call notice("warn") %}You have a test in progress: <strong>{{ in_progress.title }}</strong>.
+      <a class="underline" href="/practice/{{ in_progress.id }}">Resume it</a> (the clock keeps running).{% endcall %}
+  {% endif %}
+
+  <section class="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+    {% include "practice/_readiness.html" %}
+    <div class="card text-sm">
+      <h2 class="h2 mb-2">The real exam</h2>
+      <ul class="space-y-1.5 text-slate-700">
+        <li><strong>{{ pattern.total_questions }}</strong> questions · <strong>{{ (pattern.duration_minutes / 60)|round(1)|replace(".0", "") }} hours</strong>{% if pattern.exam_time %} · {{ pattern.exam_time }}{% endif %}</li>
+        <li>Marking <strong>+{{ pattern.marks_correct }}</strong> correct · <strong>{{ pattern.marks_wrong }}</strong> wrong · 0 blank</li>
+        <li class="flex flex-wrap gap-1">{% for s in pattern.sections %}{{ subject_badge(s.name) }}{% endfor %}</li>
+      </ul>
+      <p class="mt-2 text-xs text-slate-500">{{ pattern.format_note }} {{ pattern.verify_note }}</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="h2 mb-2">Choose a test</h2>
+    {% set full_possible = r.full_mocks_available > 0 or r.can_generate %}
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {% for m, (title, text, ic) in MODES.items() %}
+        {% set disabled = m == "full" and not full_possible %}
+        <a {% if not disabled %}href="/practice?mode={{ m }}#builder"{% endif %} aria-current="{{ 'true' if mode == m else 'false' }}"
+           class="card card-lift block text-left {{ 'ring-2 ring-teal-600' if mode == m }} {{ 'pointer-events-none opacity-50' if disabled }}">
+          <span class="mb-2 grid h-9 w-9 place-items-center rounded-xl bg-teal-50 text-teal-700 ring-1 ring-teal-100">{{ icon(ic, "h-5 w-5") }}</span>
+          <p class="font-semibold">{{ title }}</p>
+          <p class="mt-1 text-xs text-slate-600">{{ "Not enough never-seen questions yet." if disabled else text }}</p>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if mode %}
+    <section class="card space-y-4" id="builder">
+      <h2 class="h2">{{ MODES[mode][0] }}</h2>
+      <form method="post" action="/practice/prepare" hx-post="/practice/prepare" hx-target="#prepare-status" hx-disabled-elt="find button[type=submit]" class="space-y-4">
+        <input type="hidden" name="mode" value="{{ mode }}">
+        {% if mode == "mini" %}
+          <label class="block text-sm">Questions per section
+            <select name="per_section" class="input mt-1 max-w-56">{% for n in [5, 10, 15, 20, 30] %}<option value="{{ n }}" {{ 'selected' if n == 10 }}>{{ n }} ({{ n * 4 }} total, {{ n * 4 }} min)</option>{% endfor %}</select></label>
+        {% elif mode == "subject" %}
+          <div class="flex flex-wrap gap-3 text-sm">
+            <label>Subject <select name="subject" class="input mt-1">{% for s in SECTIONS + ["Biology"] %}<option>{{ s }}</option>{% endfor %}</select></label>
+            <label>Questions <input name="count" class="input mt-1 w-28" type="number" min="5" max="90" value="20"></label>
+          </div>
+        {% elif mode == "chapter" %}
+          <div class="space-y-2 text-sm">
+            {% set open_subject = pre_chapter.subject if pre_chapter else "Physics" %}
+            {% for s in SECTIONS %}
+              <details class="rounded-lg border border-slate-200" {{ 'open' if s == open_subject }}>
+                <summary class="cursor-pointer px-3 py-2">{{ subject_badge(s) }}</summary>
+                <div class="grid max-h-72 gap-1 overflow-y-auto p-2 sm:grid-cols-2">
+                  {% for c in chapters if c.subject == s %}
+                    <label class="flex items-center gap-2 rounded px-1 py-0.5"><input type="checkbox" name="chapter_ids" value="{{ c.id }}" {{ 'checked' if pre_chapter and pre_chapter.id == c.id }}>
+                      <span>{{ c.name }} <span class="text-xs text-slate-500">(Class {{ c.class_level }})</span></span></label>
+                  {% endfor %}
+                </div>
+              </details>
+            {% endfor %}
+            <p class="text-xs text-slate-500">Pick up to 10. If a chapter runs short of new questions, fresh ones are written for it.</p>
+            <label>Questions <input name="count" class="input mt-1 w-28" type="number" min="5" max="90" value="20"></label>
+          </div>
+        {% elif mode == "weak" %}
+          <label class="block text-sm">Questions <input name="count" class="input mt-1 w-28" type="number" min="5" max="90" value="20"></label>
+        {% endif %}
+        <label class="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="strict_omr" value="1" class="mt-1">
+          <span><strong>Strict OMR mode</strong>: like the real answer sheet, once you fill a bubble you cannot change it.</span>
+        </label>
+        <p class="text-xs text-slate-500">Next you'll get your admit card, the instructions and your OMR sheet. The clock starts only when you break the seal on the booklet.</p>
+        <div id="prepare-status"></div>
+        <button type="submit" class="btn" {{ 'disabled' if in_progress }}>Prepare my paper</button>
+        {% if in_progress %}<p class="text-xs text-slate-500">Finish your current test before starting another.</p>{% endif %}
+      </form>
+    </section>
+  {% endif %}
+
+  <section class="card">
+    <h2 class="h2 mb-2">Your tests</h2>
+    {% if not attempts %}<p class="muted">No tests yet.</p>{% else %}
+      <div class="overflow-x-auto"><table class="w-full min-w-[520px] text-left text-sm">
+        <thead class="text-xs text-slate-500"><tr><th class="py-1">Test</th><th>Date</th><th>Questions</th><th>Score</th><th></th></tr></thead>
+        <tbody>{% for a in attempts %}
+          <tr class="border-t border-slate-100"><td class="py-1">{{ a.title }}</td><td>{{ a.started_at|date }}</td><td>{{ a.questions }}</td>
+            <td>{{ (a.score ~ " / " ~ a.max_score) if a.status == "submitted" else ("Not started" if a.status == "ready" else "In progress") }}</td>
+            <td><a class="text-teal-700 underline" href="/practice/{{ a.id }}">{{ "Review" if a.status == "submitted" else ("Open" if a.status == "ready" else "Resume") }}</a></td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% endif %}
+  </section>
+
+  {% if perf.chapters %}
+    <section class="card">
+      <h2 class="h2 mb-1">Chapter-wise accuracy</h2>
+      <p class="muted mb-2 text-xs">{{ perf.note }}</p>
+      <div class="overflow-x-auto"><table class="w-full min-w-[480px] text-left text-sm">
+        <thead class="text-xs text-slate-500"><tr><th class="py-1">Chapter</th><th>Subject</th><th>Answered</th><th>Accuracy</th><th></th></tr></thead>
+        <tbody>{% for c in perf.chapters[:15] %}
+          <tr class="border-t border-slate-100"><td class="py-1">{{ c.chapter }}</td><td>{{ subject_badge(c.subject) }}</td><td>{{ c.attempted }}</td>
+            <td class="{{ 'font-medium text-red-700' if c.accuracy is not none and c.accuracy < 50 }}">{{ (c.accuracy ~ "%") if c.accuracy is not none else "—" }}</td>
+            <td><a class="text-teal-700 underline" href="/practice?chapter={{ c.chapter_id }}#builder">Practise</a></td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

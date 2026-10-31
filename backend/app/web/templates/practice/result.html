@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "_ui.html" import notice, subject_badge %}
+{% set OUTCOME_STYLE = {"correct": "text-emerald-700", "wrong": "text-red-700", "skipped": "text-slate-500"} %}
+{% block title %}Scorecard · {{ v.title }} · NEET Compass{% endblock %}
+{% block content %}
+<div class="space-y-5">
+  <section class="card relative overflow-hidden">
+    <div aria-hidden="true" class="med-pattern pointer-events-none absolute inset-0 opacity-40 [mask-image:linear-gradient(to_left,black,transparent_65%)]"></div>
+    <div class="relative flex flex-wrap items-center gap-5">
+      <div class="grid h-28 w-28 shrink-0 place-items-center rounded-full" style="background: conic-gradient(#0d9488 {{ pct * 3.6 }}deg, #e2e8f0 0)">
+        <div class="grid h-[5.6rem] w-[5.6rem] place-items-center rounded-full bg-white text-center">
+          <p class="text-2xl font-extrabold leading-none tabular-nums">{{ r.score }}</p><p class="text-[11px] text-slate-500">of {{ r.max_score }}</p>
+        </div>
+      </div>
+      <div class="min-w-0">
+        <p class="eyebrow text-teal-700">Scorecard</p>
+        <h1 class="h1 !text-2xl sm:!text-3xl">{{ v.title }}</h1>
+        <p class="muted">Practice score only — not a prediction of your NEET score or rank. Booklet {{ v.booklet_code }} · Roll {{ v.roll_number }}</p>
+      </div>
+    </div>
+  </section>
+  {% if r.auto_submitted %}{% call notice("warn") %}Time ran out, so your answer sheet was collected automatically with the answers saved so far.{% endcall %}{% endif %}
+  {% if v.has_sample_questions or v.has_ai_questions %}
+    {% call notice() %}This paper used practice questions that are not yet expert-reviewed{{ " (AI-written; each answer was confirmed by a second, independent AI)" if v.has_ai_questions }}. If something looks wrong, use “Report a problem” below.{% endcall %}
+  {% endif %}
+
+  <section class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    {% for k, val, c in [("Correct", r.correct, "text-emerald-700"), ("Wrong", r.wrong ~ " (−" ~ r.negative_marks ~ ")", "text-red-700"),
+        ("Left blank", r.skipped, "text-slate-700"), ("Accuracy", (r.accuracy ~ "%") if r.accuracy is not none else "—", "text-slate-900"),
+        ("Time used", ((r.time_used_seconds / 60)|round|int) ~ " / " ~ ((v.duration_seconds / 60)|round|int) ~ " min", "text-slate-900")] %}
+      <div class="card"><p class="muted">{{ k }}</p><p class="text-xl font-semibold {{ c }}">{{ val }}</p></div>
+    {% endfor %}
+  </section>
+  <p class="text-sm text-slate-600">
+    {% if r.focus_lost_count > 0 %}Left the exam window {{ r.focus_lost_count }} time(s). {% endif %}
+    {% if r.recorded_as_mock_test %}Added to your <a class="underline" href="/mock-tests">mock-test trend</a>.{% endif %}
+  </p>
+
+  {% if r.advice %}
+    <section class="card"><h2 class="h2 mb-2">Doctor's notes: what to work on</h2>
+      <ul class="list-disc space-y-1 pl-5 text-sm">{% for t in r.advice %}<li>{{ t }}</li>{% endfor %}</ul></section>
+  {% endif %}
+
+  <section class="card overflow-x-auto">
+    <h2 class="h2 mb-2">By section</h2>
+    <table class="w-full min-w-[520px] text-left text-sm">
+      <thead class="text-xs text-slate-500"><tr><th class="py-1">Section</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Blank</th><th>Accuracy</th><th>Avg time / Q</th></tr></thead>
+      <tbody>{% for s in r.sections %}
+        <tr class="border-t border-slate-100"><td class="py-1.5">{{ subject_badge(s.section) }}</td><td>{{ s.score }} / {{ s.max }}</td><td>{{ s.correct }}</td>
+          <td>{{ s.wrong }}</td><td>{{ s.questions - s.attempted }}</td><td>{{ (s.accuracy ~ "%") if s.accuracy is not none else "—" }}</td><td>{{ s.avg_seconds }}s</td></tr>{% endfor %}</tbody>
+    </table>
+  </section>
+
+  <section class="card overflow-x-auto">
+    <h2 class="h2 mb-2">By chapter (weakest first)</h2>
+    <table class="w-full min-w-[480px] text-left text-sm">
+      <thead class="text-xs text-slate-500"><tr><th class="py-1">Chapter</th><th>Subject</th><th>Correct</th><th>Accuracy</th><th></th></tr></thead>
+      <tbody>{% for c in r.chapters %}
+        <tr class="border-t border-slate-100"><td class="py-1">{{ c.chapter }}</td><td>{{ subject_badge(c.subject) }}</td><td>{{ c.correct }} / {{ c.questions }}</td>
+          <td class="{{ 'font-medium text-red-700' if c.accuracy is not none and c.accuracy < 50 }}">{{ (c.accuracy ~ "%") if c.accuracy is not none else "—" }}</td>
+          <td><a class="text-teal-700 underline" href="/practice?chapter={{ c.chapter_id }}#builder">Practise</a></td></tr>{% endfor %}</tbody>
+    </table>
+  </section>
+
+  <section class="space-y-3" id="review">
+    <div class="flex flex-wrap items-center gap-2">
+      <h2 class="h2 mr-2">Review answers</h2>
+      {% for f in ["wrong", "skipped", "marked", "correct", "all"] %}
+        <a href="/practice/{{ v.id }}?filter={{ f }}#review" hx-get="/practice/{{ v.id }}?filter={{ f }}" hx-target="#review" hx-select="#review" hx-swap="outerHTML"
+           aria-pressed="{{ 'true' if flt == f else 'false' }}" class="rounded-full px-3 py-1 text-xs capitalize ring-1 {{ 'bg-teal-700 text-white ring-teal-700' if flt == f else 'ring-slate-300' }}">{{ f }}</a>
+      {% endfor %}
+    </div>
+    {% if not shown %}<p class="muted">Nothing here.</p>{% endif %}
+    {% for q in shown %}
+      <article class="booklet space-y-2 rounded-2xl border border-slate-300 p-4 text-[15px]">
+        <p class="font-sans text-xs text-slate-500">Q{{ q.position }} · {{ q.section }} · {{ q.chapter }}{% if q.topic %} · {{ q.topic }}{% endif %}{% if q.difficulty %} · {{ q.difficulty }}{% endif %} · {{ q.time_spent_seconds }}s ·
+          <span class="font-medium {{ OUTCOME_STYLE[q.outcome] }}">{{ q.outcome }}</span></p>
+        {{ q.stem|stem }}
+        <ol class="space-y-1">{% for o in q.options %}{% set i = loop.index0 %}
+          <li class="rounded px-2 py-1 {{ 'bg-emerald-50 text-emerald-900' if i == q.correct_index else ('bg-red-50 text-red-900' if i == q.selected_index else '') }}">
+            ({{ i + 1 }}) {{ o }}{{ " ✓ correct" if i == q.correct_index }}{{ " ✗ your answer" if i == q.selected_index and i != q.correct_index }}{{ " (your answer)" if i == q.selected_index and i == q.correct_index }}</li>{% endfor %}</ol>
+        {% if q.explanation %}<p class="rounded bg-slate-50 p-2 font-sans text-sm text-slate-700"><strong>Explanation:</strong> {{ q.explanation }}</p>{% endif %}
+        <details class="font-sans">
+          <summary class="cursor-pointer text-xs text-slate-500 underline hover:text-slate-800">Report a problem</summary>
+          <form hx-post="/practice/{{ v.id }}/report/{{ q.position }}" hx-target="this" hx-swap="outerHTML" class="mt-1 flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 p-2 text-xs">
+            <select name="reason" class="input !w-auto !py-1 text-xs" aria-label="Problem">{% for k, l in REASONS %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+            <input name="note" class="input !w-56 !py-1 text-xs" maxlength="1000" placeholder="What's wrong? (optional)">
+            <button class="btn-secondary !py-1 text-xs">Send</button>
+          </form>
+        </details>
+      </article>
+    {% endfor %}
+  </section>
+  <div class="flex gap-2"><a class="btn" href="/practice">Take another test</a><a class="btn-secondary" href="/study-plan">Study plan</a></div>
+</div>
+{% endblock %}

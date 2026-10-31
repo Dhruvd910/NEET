@@ -1,0 +1,81 @@
+{% from "_ui.html" import notice, subject_badge %}
+{% from "_icons.html" import icon %}
+{# Every control posts one action; exam-room.js adds the seconds spent on the current question. #}
+{% set act = 'hx-post="/practice/' ~ v.id ~ '/act" hx-target="#room" hx-include="#room-state" hx-sync="#room:queue all"' %}
+<input type="hidden" id="room-state" name="cur" value="{{ cur }}">
+<div data-remaining="{{ v.remaining_seconds }}" data-cur="{{ cur }}" class="space-y-3">
+  <div class="sticky top-14 z-20 -mx-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur">
+    <div class="min-w-0 flex-1">
+      <h1 class="truncate text-sm font-semibold">{{ v.title }}</h1>
+      <p class="font-mono text-[11px] text-slate-500">Booklet {{ v.booklet_code }} · Roll {{ v.roll_number }}</p>
+    </div>
+    <span id="exam-clock" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-lg tabular-nums text-slate-900" role="timer" aria-label="Time left">
+      {{ icon("Clock", "h-4 w-4") }}<span data-clock>{{ v.remaining_seconds|clock }}</span></span>
+    <button type="button" class="btn-ghost !px-2" data-toggle-rough title="Rough work">{{ icon("Pencil", "h-4 w-4") }}<span class="hidden sm:inline">Rough work</span></button>
+    <button type="button" class="btn-ghost !px-2" data-fullscreen title="Full screen" aria-label="Full screen">{{ icon("Expand", "h-4 w-4") }}</button>
+    <button class="btn" hx-post="/practice/{{ v.id }}/submit" hx-include="#room-state" data-submit
+            hx-confirm="Hand in your answer sheet? {{ answered }} answered, {{ qs|length - answered }} left blank{{ (', ' ~ marked ~ ' marked for review') if marked }}. You cannot change answers after submitting.">Submit</button>
+  </div>
+
+  <div role="tablist" aria-label="Sections" class="flex gap-1 overflow-x-auto">
+    {% for s in sections %}
+      <button role="tab" aria-selected="{{ 'true' if q.section == s.name else 'false' }}" {{ act|safe }} hx-vals='{"op": "go", "target": {{ s.first }}}'
+              class="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm {{ 'bg-teal-700 text-white' if q.section == s.name else 'bg-white text-slate-700 ring-1 ring-slate-200' }}">
+        {{ s.name }} <span class="text-xs opacity-80">{{ s.done }}/{{ s.total }}</span></button>
+    {% endfor %}
+  </div>
+
+  {% if message %}{% call notice("warn") %}{{ message }}{% endcall %}{% endif %}
+
+  <div class="grid gap-4 lg:grid-cols-[1fr_300px]">
+    <article class="booklet relative rounded-2xl border border-slate-300 p-5 shadow-sm sm:p-7" aria-labelledby="qnum">
+      <div aria-hidden="true" class="absolute right-4 top-3 font-mono text-[10px] text-slate-400">{{ v.booklet_code }}</div>
+      {% if first_of_section %}
+        <div class="mb-4 flex items-center gap-2 border-b-2 border-double border-slate-400 pb-2">
+          {{ subject_badge(q.section) }}<p class="text-sm font-bold uppercase tracking-[0.2em] text-slate-700">{{ q.section }}</p>
+        </div>
+      {% endif %}
+      <div class="flex gap-3 text-[17px] leading-relaxed text-slate-900">
+        <p id="qnum" class="shrink-0 font-bold">{{ q.position }}.</p>
+        <div class="min-w-0 flex-1 space-y-4">
+          {{ q.stem|stem }}
+          <ol class="space-y-2">
+            {% for opt in q.options %}
+              {% set sel = q.selected_index == loop.index0 %}
+              <li><button {{ act|safe }} hx-vals='{"op": "choose", "target": {{ cur }}, "option": {{ loop.index0 }}}' aria-pressed="{{ 'true' if sel else 'false' }}"
+                    class="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left transition {{ 'bg-slate-900/5 font-semibold ring-1 ring-slate-900' if sel else 'hover:bg-slate-900/[0.03]' }}">
+                <span class="shrink-0">({{ loop.index }})</span><span>{{ opt }}</span></button></li>
+            {% endfor %}
+          </ol>
+        </div>
+      </div>
+      <div class="mt-6 flex flex-wrap gap-2 font-sans">
+        <button class="btn-secondary" {{ act|safe }} hx-vals='{"op": "go", "target": {{ cur - 1 }}}' {{ 'disabled' if cur == 0 }}>← Previous</button>
+        <button class="btn-secondary" {{ act|safe }} hx-vals='{"op": "mark", "target": {{ cur }}}'>{{ icon("Flag", "h-4 w-4") }}{{ "Unmark" if q.marked_for_review else "Mark for review" }}</button>
+        {% if not v.strict_omr %}<button class="btn-secondary" {{ act|safe }} hx-vals='{"op": "clear", "target": {{ cur }}}' {{ 'disabled' if q.selected_index is none }}>Clear</button>{% endif %}
+        <button class="btn" {{ act|safe }} hx-vals='{"op": "go", "target": {{ cur + 1 }}}' {{ 'disabled' if cur == qs|length - 1 }}>Save & next →</button>
+      </div>
+    </article>
+
+    <details class="group h-fit rounded-2xl border-2 border-rose-200 bg-rose-50/40 p-4 lg:sticky lg:top-32 lg:[&>summary]:pointer-events-none" open>
+      <summary class="mb-1 flex cursor-pointer list-none items-center justify-between font-semibold text-rose-900">OMR answer sheet
+        <span class="text-xs font-normal text-rose-800 lg:hidden"><span class="group-open:hidden">Show</span><span class="hidden group-open:inline">Hide</span></span></summary>
+      <p class="mb-2 font-mono text-[11px] text-rose-900/80">Roll {{ v.roll_number }} · Code {{ v.booklet_code }}</p>
+      <p class="mb-2 text-xs text-rose-900/80">{{ answered }} answered · {{ qs|length - answered }} blank · {{ marked }} marked</p>
+      <div class="max-h-[60vh] space-y-0.5 overflow-y-auto font-mono text-xs">
+        {% for x in qs %}
+          {% if loop.first or loop.previtem.section != x.section %}<p class="mb-1 mt-2 font-sans text-xs font-semibold uppercase tracking-wider text-rose-900">{{ x.section }}</p>{% endif %}
+          {% set i = loop.index0 %}
+          <div class="flex items-center gap-1.5 rounded px-1 {{ 'bg-white ring-1 ring-rose-300' if i == cur }}">
+            <button class="w-8 text-right tabular-nums text-rose-950" {{ act|safe }} hx-vals='{"op": "go", "target": {{ i }}}' aria-label="Go to question {{ x.position }}">
+              {{ x.position }}{% if x.marked_for_review %}<span class="text-amber-600" title="Marked for review">*</span>{% endif %}</button>
+            {% for o in range(4) %}
+              <button {{ act|safe }} hx-vals='{"op": "choose", "target": {{ i }}, "option": {{ o }}}' aria-label="Question {{ x.position }}, option {{ o + 1 }}" aria-pressed="{{ 'true' if x.selected_index == o else 'false' }}"
+                      class="h-5 w-5 rounded-full border text-[10px] leading-none {{ 'border-slate-900 bg-slate-900 text-white' if x.selected_index == o else 'border-rose-300 bg-white text-rose-400 hover:border-rose-600' }}">{{ o + 1 }}</button>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  </div>
+</div>

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% from "_ui.html" import empty %}
+{% block content %}
+{% call empty("Waiting for your parent or guardian") %}
+  Your parent or guardian was sent an email with a link. Once they confirm consent, you can save your profile,
+  take practice tests and use the assistant. You can still browse colleges and use the predictor.
+{% endcall %}
+{% endblock %}

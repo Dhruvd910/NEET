@@ -21,7 +21,7 @@ For students it covers:
 | Doc | For |
 |---|---|
 | [docs/DATA_LOADING.md](docs/DATA_LOADING.md) | Loading and verifying real data: sources and terms, imports, eligibility rules, info pages |
-| [docs/FREE_HOSTING.md](docs/FREE_HOSTING.md) | Hosting for free: Vercel (website) + Render (API) + Neon (database), step by step |
+| [docs/FREE_HOSTING.md](docs/FREE_HOSTING.md) | Hosting for free: Render (website + API) + Neon (database) + Cloudflare (domain), step by step |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker production stack, HTTPS, backups, monitoring, scheduled jobs |
 | [docs/DPDP_READINESS.md](docs/DPDP_READINESS.md) | Briefing for the DPDP Act 2023 legal review (data inventory, safeguards, open questions) |
 
@@ -29,8 +29,9 @@ For students it covers:
 
 | Layer | Choice |
 |---|---|
-| Frontend | Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · Recharts · Playwright |
+| Website | Server-rendered by the same Python app: Jinja2 templates · HTMX · Tailwind CSS 4 (built with `pytailwindcss`, no Node) · small scripts only for the exam clock, voice and the map |
 | Backend | FastAPI · SQLAlchemy 2 · Alembic · Pydantic 2 |
+| Tests | pytest · Playwright for Python (`pytest-playwright`) |
 | Database | SQLite for zero-setup dev; PostgreSQL in production |
 | Shared rate limits | Redis (`REDIS_URL`); in-process fallback |
 | Assistant | Text and voice. LLM through OpenRouter (`OPENROUTER_API_KEY`, default `anthropic/claude-haiku-5.5`) or Anthropic directly; deterministic tool-only fallback without a key |
@@ -49,25 +50,25 @@ backend/
       exams.py           # NEET-format practice tests: paper building, autosave, server-side timer, scoring
       study_plan.py      # class-based weekly study plan
       places.py, ocr.py, embeddings.py, email.py, costs.py, normalize.py, catalog.py, compare.py, assistant.py
-    routers/             # auth (+ guardian consent), profile, mock-tests, colleges, counselling, assistant, admin
+    routers/             # JSON API: auth (+ guardian consent), profile, mock-tests, colleges, counselling, assistant, admin
+    web/                 # the website: routes_*.py call the same API functions; templates/ (Jinja2 + HTMX);
+                         # static/ (built app.css, mascot, small scripts); styles/input.css + build_css.py
     seed.py              # reference data + DEMO data (--no-demo, --remove-demo)
     practice_seed.py     # NEET-UG syllabus chapters + original sample questions
     maintenance.py       # scheduled jobs (purge-unconsented)
   alembic/               # migrations
-  scripts/e2e_server.py  # throwaway API for browser tests
-  tests/                 # pytest
+  start.py               # container start: migrate, seed, serve
+  scripts/e2e_server.py  # throwaway copy of the site for browser tests
+  tests/                 # pytest: API and website routes
+  e2e/                   # browser tests (Playwright for Python)
   samples/               # CSV templates: cutoffs, seat matrix, fees, questions
-frontend/src/app/        # landing, register/login, guardian-consent, profile, dashboard, predictor, colleges,
-                         # compare, practice (+ exam room), study-plan, mock-tests, counselling, assistant,
-                         # neet, careers, admin (tabs)
-frontend/e2e/            # Playwright browser tests
-deploy/                  # production compose, Caddyfile, backup script
+deploy/                  # production compose, Caddyfile, backup.py
 docs/
 ```
 
 ## Run it locally
 
-Requirements: Python 3.12+ (tested on 3.14), Node 20+ (tested on 24).
+Requirements: Python 3.12+ (tested on 3.14). No Node.js needed.
 
 ```bash
 # Backend
@@ -78,17 +79,12 @@ pip install -r requirements.txt
 cp .env.example .env              # optional; defaults work for development
 alembic upgrade head
 python -m app.seed                # --no-demo: reference data only; --remove-demo: delete demo data
-uvicorn app.main:app --port 8000
+uvicorn app.main:app --port 8000   # website and API at http://localhost:8000
 ```
 
-```bash
-# Frontend (new terminal)
-cd frontend
-npm install
-npm run dev                       # http://localhost:3000, proxies /api → API_ORIGIN (default http://127.0.0.1:8000)
-```
-
-- **Port 8000 taken:** start the API on another port and run the frontend with `API_ORIGIN=http://127.0.0.1:<port>`.
+- **Changing the look:** after editing templates or `app/web/styles/input.css`, rebuild the stylesheet with
+  `python -m app.web.build_css` (downloads the Tailwind CLI once via `pytailwindcss`). The built
+  `app/web/static/app.css` is committed, so deploying needs no build step.
 - **Demo accounts** (development only, created by the seed): `student@demo.test` and `admin@demo.test`. The
   password is `SEED_DEMO_PASSWORD` from `.env.example`.
 - **Emails in development:** with `EMAIL_BACKEND=console` (default), emails such as guardian-consent links are
@@ -101,13 +97,12 @@ npm run dev                       # http://localhost:3000, proxies /api → API_
 ### Tests
 
 ```bash
-cd backend && python -m pytest -q                     # 81 passed, 1 skipped (real-Tesseract test needs the binary)
-cd frontend && npx tsc --noEmit && npx next lint
-cd frontend && npx playwright install chromium && npm run test:e2e   # 13 browser tests
+cd backend && python -m pytest -q             # 111 passed, 1 skipped (real-Tesseract test needs the binary)
+cd backend && python -m playwright install chromium && python -m pytest e2e -q   # 14 browser tests
 ```
 
-The browser tests start their own API (fresh SQLite database, via `backend/scripts/e2e_server.py`) on port 8766
-and a production build of the web app on port 3100. Set `E2E_PYTHON` to the backend virtualenv's python.
+The browser tests start their own copy of the site (fresh SQLite database, via `backend/scripts/e2e_server.py`) on
+port 8766, so they never touch the development database.
 
 ## Practice tests
 
@@ -217,8 +212,8 @@ Nearby places come from OpenStreetMap (`PLACES_PROVIDER=overpass`, refreshed per
 grouped into Getting around, Health & safety, Food, Stay, Daily needs, and Study & leisure.
 
 - Each place shows its straight-line distance and, under 3 km, a rough walking time.
-- Places are shown on a Leaflet map. Set `NEXT_PUBLIC_MAP_TILE_URL` to a tile provider you have a plan with for
-  production traffic.
+- Places are shown on a Leaflet map. Set `MAP_TILE_URL` and `MAP_ATTRIBUTION` to a tile provider you have a plan
+  with for production traffic.
 - Demo colleges have fictional locations, so their map is hidden.
 - The page never claims a place is open, safe or has rooms.
 
@@ -316,7 +311,8 @@ Interactive docs at `http://localhost:8000/docs`. Main endpoints:
 | CSRF, shared rate limiting, guardian consent, retention job, production config guard | ✅ Done |
 | Practice tests (NEET format, OMR sheet, analysis) and class-based study plans | ✅ Done. **Needs an expert-reviewed question bank** before launch |
 | Around-the-campus facilities with map | ✅ Done. Needs real colleges with verified coordinates |
-| Browser tests (Playwright) | ✅ 13 tests |
+| Website in Python (Jinja2 + HTMX, served by FastAPI) | ✅ Done |
+| Browser tests (Playwright for Python) | ✅ 14 tests |
 | Deployment (Docker, HTTPS, backups, monitoring) | ✅ Written; not yet run on a server |
 | **Real data** | ⏳ Needs the source terms review and the import and verification work in [DATA_LOADING.md](docs/DATA_LOADING.md) |
 | **Legal review (DPDP)** | ⏳ Needs a qualified lawyer: [DPDP_READINESS.md](docs/DPDP_READINESS.md) |

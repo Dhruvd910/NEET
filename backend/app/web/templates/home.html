@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% set FEATURES = [
+  ("College predictor", "Check your rank against past closing ranks — the same way a doctor compares a reading against a normal range.", "/predictor", "Stethoscope", "from-teal-500 to-emerald-600"),
+  ("College profiles", "Fees, hostels, clinical exposure and cutoffs, each with its source and the date it was checked.", "/colleges", "Hospital", "from-sky-500 to-blue-600"),
+  ("Compare & cost", "Put 2–5 colleges side by side and estimate the full cost of the course.", "/compare", "Scale", "from-amber-500 to-orange-600"),
+  ("Practice tests", "NEET-format mocks on an OMR sheet, with section-wise and chapter-wise analysis afterwards.", "/practice", "Clipboard", "from-violet-500 to-purple-600"),
+  ("Study plan", "A week-by-week plan built from your class, your hours and how far through the syllabus you are.", "/study-plan", "Calendar", "from-rose-500 to-pink-600"),
+  ("Mock-test tracker", "Log your tests, watch the vitals of your preparation — weak subjects, weak chapters, trend.", "/mock-tests", "HeartPulse", "from-emerald-500 to-teal-600"),
+  ("Counselling help", "AIQ vs state quota, rounds, documents and a draft preference list you control.", "/counselling", "BadgeId", "from-cyan-500 to-teal-600"),
+  ("Ask the assistant", "Questions in plain language, answered from our database and official documents — text or voice.", "/assistant", "Sparkle", "from-fuchsia-500 to-purple-600"),
+] %}
+{% set STEPS = [
+  ("Create your profile", "Tell us your class, category and rank — or an estimated range. Nothing is public.", "from-teal-500 to-emerald-600"),
+  ("Shortlist with evidence", "Predict, compare and cost out colleges, then save a preference order you can change any time.", "from-sky-500 to-indigo-600"),
+  ("Practice, then adjust", "Take mocks, find weak chapters and let the weekly plan shift time towards them.", "from-violet-500 to-fuchsia-600"),
+] %}
+{% set TRUST = [
+  ("Official sources only", "Facts come from NTA, NMC, MCC, state authorities and college prospectuses — never from an AI’s memory."),
+  ("Labels, not promises", "Predictions compare your rank with historical closing ranks. No probabilities, no guarantees."),
+  ("Estimates stay marked", "An estimated rank or mock score is always flagged as an estimate, everywhere it appears."),
+  ("Your data, your call", "Category is private and used only where counselling rules require it. Export or delete any time."),
+] %}
+{% block content %}
+<div class="space-y-14">
+  <section class="relative overflow-hidden rounded-[2rem] bg-[#032b2a] px-6 py-10 text-white shadow-2xl shadow-teal-900/25 sm:px-10 sm:py-14 lg:px-14">
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0">
+      <div class="absolute -left-24 -top-32 h-96 w-96 rounded-full bg-teal-400/25 blur-3xl"></div>
+      <div class="absolute -right-16 top-4 h-80 w-80 rounded-full bg-indigo-500/30 blur-3xl"></div>
+      <div class="absolute bottom-[-6rem] left-1/3 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl"></div>
+      <div class="med-crosses absolute inset-0 opacity-[0.07] [mask-image:radial-gradient(ellipse_at_35%_35%,black,transparent_72%)]"></div>
+    </div>
+    <div class="relative grid items-center gap-10 lg:grid-cols-[1fr_0.95fr]">
+      <div>
+        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-teal-50 backdrop-blur sm:text-xs sm:tracking-[0.14em]">
+          {{ icon("CompassCross", "h-3.5 w-3.5 text-emerald-300") }} NEET-UG → MBBS / BDS
+        </span>
+        <h1 class="mt-5 max-w-2xl font-display text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">
+          Your NEET journey, <span class="bg-gradient-to-r from-teal-200 via-emerald-200 to-sky-200 bg-clip-text text-transparent">mapped out</span>.
+        </h1>
+        <p class="mt-4 max-w-xl text-[15px] leading-relaxed text-teal-50/90 sm:text-base">
+          Built for future doctors: cutoffs, colleges, costs and a study plan that adapts to you. Every number shows
+          where it came from and when it was last checked.
+        </p>
+        <div class="mt-7 flex flex-wrap items-center gap-3">
+          <a href="/register" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-teal-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-teal-50 sm:w-auto">Create your profile {{ icon("Arrow", "h-4 w-4") }}</a>
+          <a href="/predictor" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/5 px-5 py-3 text-sm font-bold text-white backdrop-blur transition hover:-translate-y-0.5 hover:bg-white/15 sm:w-auto">Try the predictor</a>
+        </div>
+        <ul class="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-teal-100/90">
+          {% for t in ["No probability guesses", "Guardian consent built in", "Export or delete any time"] %}
+            <li class="flex items-center gap-1.5">{{ icon("Check", "h-3.5 w-3.5 text-emerald-300") }}{{ t }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div class="relative hidden lg:block">
+        <div aria-hidden="true" class="absolute left-1/2 top-1/2 h-48 w-48 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-teal-400/30 to-indigo-500/30 blur-2xl xl:h-60 xl:w-60"></div>
+        <div class="relative mx-auto w-fit">
+          <img src="/static/mascot/idle-still.png" alt="NEET Compass assistant mascot" class="animate-float block h-52 w-auto drop-shadow-2xl xl:h-64" draggable="false">
+          <div class="animate-float absolute right-[94%] top-[10%] w-max rounded-2xl border border-white/25 bg-white/95 px-3 py-2 text-slate-900 shadow-xl shadow-black/25 xl:px-3.5 xl:py-2.5">
+            <p class="flex items-center gap-1.5 text-[8.5px] font-bold uppercase tracking-[0.12em] text-slate-500 xl:text-[9.5px]">{{ icon("Clipboard", "h-3 w-3 text-violet-600") }} Mock format</p>
+            <p class="font-display text-[12px] font-extrabold whitespace-nowrap xl:text-sm">+4 / −1 / 0</p>
+          </div>
+          <div class="animate-float absolute bottom-[8%] left-[90%] w-max rounded-2xl border border-white/25 bg-white/95 px-3 py-2 text-slate-900 shadow-xl shadow-black/25 [animation-delay:-2.5s] xl:px-3.5 xl:py-2.5">
+            <p class="flex items-center gap-1.5 text-[8.5px] font-bold uppercase tracking-[0.12em] text-slate-500 xl:text-[9.5px]">{{ icon("HeartPulse", "h-3 w-3 text-rose-500") }} Cutoff history</p>
+            <p class="font-display text-[12px] font-extrabold whitespace-nowrap xl:text-sm">3 years, per seat type</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <dl class="relative mt-10 grid gap-px overflow-hidden rounded-2xl border border-white/15 bg-white/10 sm:grid-cols-3">
+      {% for big, small in [("3 yrs", "cutoff history behind every match"), ("180 Q · 180 min", "real NEET-format mock tests"), ("100%", "facts with a source and last-checked date")] %}
+        <div class="bg-[#032b2a]/40 px-5 py-4 backdrop-blur"><dt class="font-display text-xl font-extrabold text-white">{{ big }}</dt><dd class="mt-0.5 text-xs text-teal-100/80">{{ small }}</dd></div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  <section aria-labelledby="features">
+    <div class="mb-6">
+      <p class="eyebrow flex items-center gap-2 text-teal-700">{{ icon("PulseRule", "h-3 w-8") }} Everything in one place</p>
+      <h2 id="features" class="h1 mt-1">Pick a tool, get moving</h2>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {% for title, body, href, ic, tint in FEATURES %}
+        <a href="{{ href }}" class="card card-lift group relative overflow-hidden">
+          <span aria-hidden="true" class="absolute -right-10 -top-12 h-28 w-28 rounded-full bg-gradient-to-br {{ tint }} opacity-10 blur-2xl transition group-hover:opacity-25"></span>
+          <span class="relative grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br {{ tint }} text-white shadow-lg shadow-slate-900/15">{{ icon(ic, "h-5 w-5") }}</span>
+          <h3 class="mt-4 font-display text-[15px] font-bold tracking-tight text-slate-900">{{ title }}</h3>
+          <p class="mt-1.5 text-[13px] leading-relaxed text-slate-600">{{ body }}</p>
+          <span class="mt-3 inline-flex items-center gap-1 text-[13px] font-bold text-teal-700">Open {{ icon("Arrow", "h-3.5 w-3.5 transition group-hover:translate-x-1") }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-800 px-6 py-8 text-white shadow-xl shadow-teal-900/20 sm:px-10">
+    <div aria-hidden="true" class="med-crosses absolute inset-0 opacity-[0.08]"></div>
+    <div class="relative flex flex-wrap items-center gap-6">
+      <span class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/30 backdrop-blur">{{ icon("Stethoscope", "h-7 w-7") }}</span>
+      <div class="min-w-[16rem] flex-1">
+        <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100/90">Built for future doctors</p>
+        <h2 class="mt-1 font-display text-2xl font-extrabold tracking-tight">From your first mock to your first stethoscope.</h2>
+        <p class="mt-2 max-w-xl text-sm leading-relaxed text-teal-50/90">One honest workspace for the years between a NEET-UG rank and a white coat — cutoffs, counselling, practice and planning in the same place.</p>
+      </div>
+      <div class="ml-auto hidden items-center gap-2 text-white/60 sm:flex">
+        {% for ic in ["Microscope", "Dna", "Pill", "HeartPulse"] %}<span class="grid h-10 w-10 place-items-center rounded-xl bg-white/10 ring-1 ring-white/20">{{ icon(ic, "h-5 w-5") }}</span>{% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="how">
+    <p class="eyebrow flex items-center gap-2 text-indigo-600">{{ icon("PulseRule", "h-3 w-8") }} How it fits together</p>
+    <h2 id="how" class="h1 mt-1">From rank to shortlist in three steps</h2>
+    <div class="mt-6 grid gap-4 md:grid-cols-3">
+      {% for title, body, tint in STEPS %}
+        <div class="card card-lift relative">
+          <div class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br {{ tint }} font-display text-sm font-extrabold text-white shadow-lg shadow-slate-900/15">{{ loop.index }}</div>
+          <h3 class="mt-4 font-display text-base font-bold text-slate-900">{{ title }}</h3>
+          <p class="muted mt-1.5">{{ body }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="grid gap-4 lg:grid-cols-2">
+    <div class="card relative overflow-hidden">
+      <p class="eyebrow text-violet-600">Exam room</p>
+      <h2 class="mt-1 font-display text-xl font-extrabold tracking-tight text-slate-900">180 questions. 180 minutes. Real marking.</h2>
+      <p class="muted mt-2">Admit card, sealed booklet, OMR sheet and invigilator bells — and you never see the same question twice.</p>
+      <ul class="mt-4 space-y-2 text-sm text-slate-700">
+        {% for t in ["+4 correct · −1 wrong · 0 blank", "Optional strict OMR mode: no changing a filled bubble", "Section and chapter accuracy after every attempt"] %}
+          <li class="flex gap-2">{{ icon("Check", "mt-0.5 h-4 w-4 shrink-0 text-violet-600") }}{{ t }}</li>
+        {% endfor %}
+      </ul>
+      <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+        <div class="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-slate-500"><span>Full mock paper</span><span>180 questions</span></div>
+        <ul class="mt-2 grid grid-cols-2 gap-1.5">
+          {% for s in SECTIONS %}
+            <li class="flex items-center justify-between rounded-lg bg-white px-2.5 py-1.5 shadow-sm ring-1 ring-slate-200">
+              <span class="flex items-center gap-1.5 text-[12px] font-semibold text-slate-700"><span class="grid h-5 w-5 place-items-center rounded-md bg-gradient-to-br {{ SUBJECT_STYLE[s][1] }} text-white">{{ icon(SUBJECT_STYLE[s][0], "h-3 w-3") }}</span>{{ s }}</span>
+              <span class="text-[11px] font-bold text-slate-500">45 Q</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+      <a href="/practice" class="btn mt-5 w-full sm:w-auto">Start a practice test {{ icon("Arrow", "h-4 w-4") }}</a>
+    </div>
+    <div class="card relative overflow-hidden">
+      <p class="eyebrow text-rose-600">Weekly plan</p>
+      <h2 class="mt-1 font-display text-xl font-extrabold tracking-tight text-slate-900">A timetable that reacts to your scores</h2>
+      <p class="muted mt-2">Class 11, Class 12 and droppers get different plans. Chapters you score badly on get more time, and the plan warns you when the syllabus stops fitting before the final phase.</p>
+      <div class="mt-4 space-y-3">
+        {% for label, pct, tint in [("Physics · Ray optics", 72, "from-teal-500 to-emerald-500"), ("Chemistry · Thermodynamics", 45, "from-amber-500 to-orange-500"), ("Botany · Plant kingdom", 88, "from-emerald-500 to-lime-500"), ("Zoology · Human physiology", 30, "from-rose-500 to-pink-500")] %}
+          <div>
+            <div class="flex items-center justify-between text-[13px]"><span class="font-semibold text-slate-700">{{ label }}</span><span class="text-slate-500">{{ pct }}%</span></div>
+            <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-gradient-to-r {{ tint }}" style="width: {{ pct }}%"></div></div>
+          </div>
+        {% endfor %}
+      </div>
+      <p class="mt-4 text-xs text-slate-500">Sample plan view — your own plan is built from your class, hours and syllabus tracker.</p>
+      <a href="/study-plan" class="btn-secondary mt-5 w-full sm:w-auto">Build my study plan</a>
+    </div>
+  </section>
+
+  <section aria-labelledby="trust" class="rounded-[1.75rem] border border-slate-200 bg-white/70 p-6 shadow-sm sm:p-8">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p class="eyebrow flex items-center gap-2 text-teal-700">{{ icon("PulseRule", "h-3 w-8") }} Why you can rely on it</p>
+        <h2 id="trust" class="h1 mt-1">Honest by design</h2>
+      </div>
+      <a href="/neet" class="text-sm font-bold text-teal-700 hover:underline">How NEET-UG works →</a>
+    </div>
+    <div class="mt-6 grid gap-4 sm:grid-cols-2">
+      {% for title, body in TRUST %}
+        <div class="flex gap-3 rounded-xl bg-white p-4 ring-1 ring-slate-200/80">
+          <span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">{{ icon("Check", "h-3.5 w-3.5") }}</span>
+          <div><p class="text-sm font-bold text-slate-900">{{ title }}</p><p class="mt-1 text-[13px] leading-relaxed text-slate-600">{{ body }}</p></div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-teal-600 via-teal-700 to-indigo-700 px-6 py-10 text-white shadow-xl shadow-teal-900/20 sm:px-10">
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0">
+      <div class="absolute -right-10 -top-16 h-64 w-64 rounded-full bg-white/15 blur-3xl"></div>
+      <div class="absolute -bottom-20 left-10 h-56 w-56 rounded-full bg-indigo-400/25 blur-3xl"></div>
+      <div class="med-crosses absolute inset-0 opacity-[0.06]"></div>
+      {{ icon("Target", "absolute -bottom-6 right-8 hidden h-40 w-40 text-white/10 lg:block") }}
+    </div>
+    <div class="relative flex flex-wrap items-center justify-between gap-6">
+      <div>
+        <h2 class="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">Start where you are today.</h2>
+        <p class="mt-2 max-w-lg text-sm text-teal-50/90">A rank, an estimated range, or just a target score — the predictor works from all three.</p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <a href="/register" class="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-teal-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-teal-50">Get started free {{ icon("Arrow", "h-4 w-4") }}</a>
+        <a href="/colleges" class="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/5 px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/15">Browse colleges</a>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

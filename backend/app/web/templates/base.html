@@ -1,0 +1,127 @@
+{% from "_icons.html" import icon %}
+{%- set path = page.request.url.path -%}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}NEET Compass — NEET-UG guidance{% endblock %}</title>
+  <meta name="description" content="Source-backed NEET-UG guidance: college matches from historical cutoffs, costs, real-exam practice tests, study plans and counselling help.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
+  <link rel="icon" href="/static/mascot/avatar-circle.png">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+  {# Swap 422 responses too, so form validation errors render in place. #}
+  <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"422","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
+  {% block head %}{% endblock %}
+</head>
+{# HTMX sends the CSRF token with every request it makes; the server checks it on every change. #}
+<body class="antialiased" hx-headers='{"X-CSRF-Token": "{{ page.csrf }}"}'>
+<header class="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl">
+  <nav class="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4" aria-label="Main">
+    <a href="/" class="group flex shrink-0 items-center gap-2.5" aria-label="NEET Compass home">
+      <span class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-teal-400 via-teal-600 to-indigo-600 text-white shadow-lg shadow-teal-900/25 ring-1 ring-white/40 transition group-hover:scale-105">
+        {{ icon("CompassCross", "h-5 w-5") }}
+      </span>
+      <span class="hidden font-display text-[13px] font-extrabold tracking-tight whitespace-nowrap text-slate-900 min-[380px]:inline sm:text-[15px]">
+        NEET <span class="bg-gradient-to-r from-teal-600 to-indigo-600 bg-clip-text text-transparent">Compass</span>
+        <span class="ml-1.5 hidden rounded bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-teal-700 ring-1 ring-teal-100 align-middle xl:inline">MBBS / BDS</span>
+      </span>
+    </a>
+    {% macro navlink(href, label) -%}
+      {%- set active = path == href or path.startswith(href ~ "/") -%}
+      <a href="{{ href }}" {% if active %}aria-current="page"{% endif %}
+         class="whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] transition {{ 'bg-gradient-to-r from-teal-50 to-emerald-50 font-bold text-teal-800 ring-1 ring-teal-100' if active else 'font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">{{ label }}</a>
+    {%- endmacro %}
+    <div class="mx-2 hidden flex-1 items-center gap-0.5 lg:flex">
+      {% for href, label in NAV_LINKS %}{{ navlink(href, label) }}{% endfor %}
+      <details class="relative">
+        <summary class="inline-flex cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+          More <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </summary>
+        <div role="menu" class="absolute left-0 z-40 mt-2 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10">
+          {% for href, label in NAV_MORE %}
+            <a href="{{ href }}" role="menuitem" class="block rounded-lg px-3 py-2 text-[13px] transition {{ 'bg-teal-50 font-bold text-teal-800' if path.startswith(href) else 'font-medium text-slate-700 hover:bg-slate-100' }}">{{ label }}</a>
+          {% endfor %}
+          {% if me and me.role.value == "admin" %}<a href="/admin" role="menuitem" class="block rounded-lg px-3 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-100">Admin</a>{% endif %}
+        </div>
+      </details>
+    </div>
+    <div class="ml-auto flex shrink-0 items-center gap-2">
+      {% if me %}
+        <a href="/profile" class="hidden text-[13px] font-semibold text-slate-600 hover:text-teal-700 sm:inline">Profile</a>
+        <button hx-post="/logout" class="btn-secondary !rounded-lg !px-3 !py-1.5 !text-[13px]">Sign out</button>
+      {% else %}
+        <a href="/login" class="btn-secondary hidden !rounded-lg !px-3 !py-1.5 !text-[13px] sm:inline-flex">Sign in</a>
+        <a href="/register" class="btn !rounded-lg !px-3 !py-1.5 !text-[13px]">Get started</a>
+      {% endif %}
+      <details class="lg:hidden">
+        <summary class="btn-secondary list-none !rounded-lg !px-2.5 !py-1.5" aria-label="Menu">☰</summary>
+        <div class="absolute inset-x-0 top-full border-t border-slate-200/70 bg-white px-3 py-3 shadow-lg">
+          <div class="grid grid-cols-2 gap-1">
+            {% for href, label in NAV_LINKS + NAV_MORE %}{{ navlink(href, label) }}{% endfor %}
+            {% if me %}{{ navlink("/profile", "Profile") }}{% endif %}
+            {% if me and me.role.value == "admin" %}{{ navlink("/admin", "Admin") }}{% endif %}
+          </div>
+          {% if not me %}<a href="/login" class="btn-secondary mt-2.5 w-full">Sign in</a>{% endif %}
+        </div>
+      </details>
+    </div>
+  </nav>
+  {% if me and me.is_minor and me.guardian_consent_status != "verified" %}
+    {% if me.guardian_consent_status == "declined" %}
+      <p role="status" class="bg-red-50 px-4 py-2 text-center text-sm text-red-900">
+        Your parent or guardian did not give consent, so this account can't store personal data. It will be deleted
+        automatically. You can still browse colleges and use the predictor without signing in.
+      </p>
+    {% else %}
+      <p role="status" class="bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+        Waiting for your parent or guardian to give consent. Until then, saving your profile, mock tests and chats is switched off.
+        <button class="underline" hx-post="/guardian-consent-resend" hx-target="#resend-msg">Resend the email</button> ·
+        <button class="underline" hx-delete="/account" hx-confirm="Permanently delete this account? This cannot be undone.">Delete this account</button>
+        <span id="resend-msg" class="ml-2"></span>
+      </p>
+    {% endif %}
+  {% endif %}
+</header>
+
+<main class="mx-auto min-h-[70vh] w-full max-w-6xl px-4 py-6 sm:py-9">{% block content %}{% endblock %}</main>
+
+<footer class="relative mt-16 border-t border-slate-200/80 bg-white/70">
+  <div aria-hidden="true" class="med-pattern pointer-events-none absolute inset-0 opacity-60 [mask-image:linear-gradient(to_bottom,black,transparent_75%)]"></div>
+  <div class="relative mx-auto max-w-6xl px-4 pt-10 pb-24 text-xs leading-relaxed text-slate-500 sm:pr-48">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <span class="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-teal-500 to-indigo-600 text-white shadow-md shadow-teal-900/20">{{ icon("CompassCross", "h-4 w-4") }}</span>
+        <p class="font-display text-sm font-extrabold tracking-tight text-slate-800">NEET <span class="text-teal-700">Compass</span></p>
+        <span class="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 ring-1 ring-teal-100">NEET-UG → MBBS / BDS</span>
+      </div>
+      <nav aria-label="Footer" class="flex flex-wrap gap-x-5 gap-y-1 font-semibold text-slate-600">
+        <a class="hover:text-teal-700" href="/colleges">Colleges</a>
+        <a class="hover:text-teal-700" href="/predictor">Predictor</a>
+        <a class="hover:text-teal-700" href="/practice">Practice tests</a>
+        <a class="hover:text-teal-700" href="/assistant">Assistant</a>
+      </nav>
+    </div>
+    <p class="mt-5 max-w-3xl">
+      NEET Compass gives guidance, not guarantees. College matches are based on past counselling data and cannot
+      predict this year's outcome. Always confirm details with the official sources: NTA (NEET-UG), MCC,
+      NMC and your state counselling authority.
+    </p>
+    <p class="mt-2">Records marked <strong>DEMO</strong> are synthetic development data and are not real colleges or cutoffs.</p>
+  </div>
+</footer>
+
+{% if not (path.startswith("/assistant") or path.startswith("/guardian-consent") or (path.startswith("/practice/") and path[10:].isdigit())) %}
+<a href="/assistant" aria-label="Ask the NEET assistant" class="group fixed right-4 bottom-4 z-30 flex items-end gap-2 print:hidden">
+  <span class="mb-3 hidden rounded-full bg-white px-3 py-1.5 text-sm text-slate-800 shadow-md ring-1 ring-slate-200 group-hover:block sm:block">Ask me anything</span>
+  <span class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-sky-50 shadow-lg ring-2 ring-sky-300 transition group-hover:scale-105">
+    <img src="/static/mascot/avatar-circle.png" alt="" aria-hidden="true" class="h-full w-full rounded-full object-cover">
+  </span>
+</a>
+{% endif %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

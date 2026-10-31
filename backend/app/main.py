@@ -2,17 +2,22 @@ import json
 import logging
 import time
 import uuid
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.config import get_settings
 from app.db import SessionLocal
 from app.routers import admin, assistant, auth, colleges, counselling, mock_tests, practice, profile
 from app.security import COOKIE_NAME, CSRF_COOKIE, csrf_ok, csrf_token_for, rate_limiter
+from app.web import core as web_core
+from app.web.routers import routers as web_routers
 
 settings = get_settings()
 
@@ -61,11 +66,14 @@ async def security_and_limits(request: Request, call_next):
         bucket, limit = "default", settings.rate_limit_default
     if not rate_limiter.check(f"{bucket}:{client_ip(request)}", limit):
         return JSONResponse({"detail": "Too many requests — please wait a minute and try again."}, status_code=429)
-    # Login/register start a new session, so a stale cookie must not block them.
-    csrf_exempt = path in ("/api/auth/login", "/api/auth/register")
-    if path.startswith("/api/") and not csrf_exempt and not csrf_ok(request):
-        return JSONResponse({"detail": "Security check failed (missing or invalid CSRF token). Reload the page "
-                                       "and try again."}, status_code=403)
+    # Login/register start a new session, so a stale cookie must not block them. Guardian consent is protected
+    # by its single-use emailed token instead (the guardian is usually not signed in).
+    csrf_exempt = path in ("/api/auth/login", "/api/auth/register", "/login", "/register", "/guardian-consent")
+    if not csrf_exempt and not csrf_ok(request):
+        msg = "Security check failed (missing or invalid CSRF token). Reload the page and try again."
+        if path.startswith("/api/"):
+            return JSONResponse({"detail": msg}, status_code=403)
+        return HTMLResponse(msg, status_code=403)
     response = await call_next(request)
     # Sessions created before CSRF tokens existed (or with a cleared cookie) get one on the next request.
     session = request.cookies.get(COOKIE_NAME)
@@ -93,6 +101,21 @@ async def request_log(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # The assistant's voice input needs the microphone on this site only.
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
+    if settings.cookie_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
+
+# Pages and the exam room's OMR sheet are mostly repeated markup, so they compress well.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Added last so it runs first: preflight requests are answered before rate limiting and CSRF.
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
@@ -109,6 +132,31 @@ async def validation_error(_: Request, exc: RequestValidationError):
 for r in (auth.router, profile.router, mock_tests.router, colleges.router, counselling.router,
           assistant.router, practice.router, admin.router):
     app.include_router(r)
+
+# ---------------------------------------------------------------- website (Python: Jinja2 templates + HTMX)
+app.mount("/static", StaticFiles(directory=web_core.WEB_DIR / "static"), name="static")
+web_core.templates.env.globals["asset_version"] = int((web_core.WEB_DIR / "static/app.css").stat().st_mtime)
+for r in web_routers:
+    app.include_router(r)
+
+
+@app.exception_handler(web_core.LoginRequired)
+async def login_required(request: Request, exc: web_core.LoginRequired):
+    target = f"/login?next={quote(exc.next_url)}"
+    if request.headers.get("hx-request") == "true":
+        return Response(status_code=204, headers={"HX-Redirect": target})
+    return RedirectResponse(target, status_code=303)
+
+
+@app.exception_handler(web_core.GuardianPending)
+async def guardian_pending(request: Request, _exc):
+    return web_core.templates.TemplateResponse(request, "errors/guardian_pending.html", {
+        "page": web_core.Page(request, None, None), "me": None}, status_code=403)
+
+
+@app.exception_handler(web_core.AdminRequired)
+async def admin_required(request: Request, _exc):
+    return HTMLResponse("Administrator access required.", status_code=403)
 
 
 @app.get("/api/health")
