@@ -5,6 +5,7 @@
     SEED_ON_START=demo        reference data + the clearly-labelled DEMO colleges, questions and accounts
                               (either value also imports data/question_bank.json, skipping questions already present)
     PORT                      port to listen on (free hosts such as Render set this; default 8000)
+    HOST                      address to listen on (default 0.0.0.0; 127.0.0.1 when a tunnel is the only way in)
     WEB_CONCURRENCY           number of server processes (default 1)
 """
 import os
@@ -41,7 +42,7 @@ def main() -> None:
     # The server runs in this process, so it receives the platform's stop signal directly.
     import uvicorn
     os.chdir(HERE)
-    uvicorn.run("app.main:app", host="0.0.0.0", port=int(os.environ.get("PORT", "8000")),
+    uvicorn.run("app.main:app", host=os.environ.get("HOST", "0.0.0.0"), port=int(os.environ.get("PORT", "8000")),
                 workers=int(os.environ.get("WEB_CONCURRENCY", "1")), proxy_headers=True, forwarded_allow_ips="*")
 
 

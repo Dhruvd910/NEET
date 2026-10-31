@@ -42,6 +42,10 @@ app = FastAPI(
     title="NEET Guidance Platform API",
     version="0.2.0",
     description="Source-backed NEET-UG guidance: catalog, historical cutoff matching, costs, mock tests, assistant.",
+    # The interactive API docs are for development only, not for public visitors.
+    docs_url="/docs" if settings.env == "development" else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if settings.env == "development" else None,
 )
 
 

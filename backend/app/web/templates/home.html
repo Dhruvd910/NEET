@@ -61,14 +61,14 @@
             <p class="font-display text-[12px] font-extrabold whitespace-nowrap xl:text-sm">+4 / −1 / 0</p>
           </div>
           <div class="animate-float absolute bottom-[8%] left-[90%] w-max rounded-2xl border border-white/25 bg-white/95 px-3 py-2 text-slate-900 shadow-xl shadow-black/25 [animation-delay:-2.5s] xl:px-3.5 xl:py-2.5">
-            <p class="flex items-center gap-1.5 text-[8.5px] font-bold uppercase tracking-[0.12em] text-slate-500 xl:text-[9.5px]">{{ icon("HeartPulse", "h-3 w-3 text-rose-500") }} Cutoff history</p>
-            <p class="font-display text-[12px] font-extrabold whitespace-nowrap xl:text-sm">3 years, per seat type</p>
+            <p class="flex items-center gap-1.5 text-[8.5px] font-bold uppercase tracking-[0.12em] text-slate-500 xl:text-[9.5px]">{{ icon("HeartPulse", "h-3 w-3 text-rose-500") }} Official source</p>
+            <p class="font-display text-[12px] font-extrabold whitespace-nowrap xl:text-sm">NMC college list</p>
           </div>
         </div>
       </div>
     </div>
     <dl class="relative mt-10 grid gap-px overflow-hidden rounded-2xl border border-white/15 bg-white/10 sm:grid-cols-3">
-      {% for big, small in [("3 yrs", "cutoff history behind every match"), ("180 Q · 180 min", "real NEET-format mock tests"), ("100%", "facts with a source and last-checked date")] %}
+      {% for big, small in [(stats.colleges|num, "MBBS colleges on NMC's official list"), ((stats.seats|num) ~ " seats", "approved MBBS intake, " ~ stats.year), ("180 Q · 180 min", "real NEET-format mock tests")] %}
         <div class="bg-[#032b2a]/40 px-5 py-4 backdrop-blur"><dt class="font-display text-xl font-extrabold text-white">{{ big }}</dt><dd class="mt-0.5 text-xs text-teal-100/80">{{ small }}</dd></div>
       {% endfor %}
     </dl>

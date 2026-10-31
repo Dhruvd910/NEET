@@ -360,6 +360,10 @@ def remove_demo(db: Session) -> dict:
         "sample_questions_retired": db.execute(update(Question).where(Question.review_status == "sample")
                                                .values(review_status="retired")).rowcount,
     }
+    counts["universities"] = db.execute(delete(University).where(University.name.like("%(DEMO)"))).rowcount
+    # The synthetic source can no longer be chosen for imports.
+    counts["demo_source_closed"] = db.execute(update(DataSource).where(DataSource.kind == "demo")
+                                              .values(usage_status="prohibited")).rowcount
     db.commit()
     return counts
 

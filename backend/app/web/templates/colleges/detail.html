@@ -32,12 +32,23 @@
   {% if tab == "overview" %}
     <section class="card space-y-3">
       <dl class="grid gap-3 text-sm sm:grid-cols-2">
-        <div><dt class="text-slate-500">Official website</dt><dd class="font-medium">{% if o.website %}<a class="underline" href="{{ o.website }}" target="_blank" rel="noreferrer">{{ o.website }}</a>{% else %}Not available{% endif %}</dd></div>
-        {{ row("Address", o.address or "Not available") }}
+        <div><dt class="text-slate-500">Website</dt><dd class="font-medium">{% if o.website %}<a class="break-all underline" href="{{ o.website }}" target="_blank" rel="noreferrer">{{ o.website }}</a>
+          {% if o.website_source %}<span class="block text-xs font-normal text-slate-500">Found via {{ o.website_source }}; confirm it is the college's own site.</span>{% endif %}{% else %}Not available yet{% endif %}</dd></div>
+        {{ row("Address", ((o.address ~ (" – " ~ o.pincode if o.pincode and o.pincode not in o.address else "")) if o.address else "Not available")) }}
+        {% if o.contact_phone or o.contact_email %}
+          <div><dt class="text-slate-500">Contact (as listed with NMC)</dt><dd class="font-medium">{{ o.contact_phone or "" }}
+            {% if o.contact_email %}<a class="block break-all font-normal underline" href="mailto:{{ o.contact_email }}">{{ o.contact_email }}</a>{% endif %}</dd></div>
+        {% endif %}
         {{ row("Established", o.established_year or "Not available") }}
         {{ row("Recognition", (o.recognition_status ~ " (" ~ o.recognition_year ~ ")") if o.recognition_status else "Not verified") }}
+        {{ row("University", o.university or "Not available") }}
+        {% if o.location_source %}{{ row("Map location", o.location_source) }}{% endif %}
         {{ row("Also known as", o.aliases|join("; ") or "—") }}
       </dl>
+      {% if o.recognition_note %}
+        <details class="rounded-lg bg-slate-50 p-3 text-sm"><summary class="cursor-pointer font-medium">NMC remark (as published)</summary>
+          <p class="mt-2 whitespace-pre-line text-slate-700">{{ o.recognition_note }}</p></details>
+      {% endif %}
       <h2 class="h2">Courses & approved intake</h2>
       {% for code, rows in o.courses.items() %}{% for c in rows %}
         <div class="text-sm">

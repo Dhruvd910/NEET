@@ -8,10 +8,10 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.models import College, ExamProfile, SavedCollege, StudentProfile, StudentReview
+from app.models import College, CollegeCourse, ExamProfile, SavedCollege, StudentProfile, StudentReview
 from app.routers import colleges as colleges_api
 from app.routers import counselling as counselling_api
 from app.routers.colleges import PredictIn
@@ -41,7 +41,12 @@ def _college(p: Page, college_id: int) -> College:
 
 @router.get("/", response_class=HTMLResponse)
 def home(p: Page = Depends(page)):
-    return p.render("home.html")
+    year = p.db.scalar(select(func.max(CollegeCourse.academic_year)))
+    stats = {"colleges": p.db.scalar(select(func.count(College.id)).where(College.is_demo.is_(False))) or 0,
+             "seats": p.db.scalar(select(func.sum(CollegeCourse.approved_intake)).join(College)
+                                  .where(College.is_demo.is_(False), CollegeCourse.academic_year == year)) or 0,
+             "year": year or "—"}
+    return p.render("home.html", stats=stats)
 
 
 @router.get("/colleges", response_class=HTMLResponse)

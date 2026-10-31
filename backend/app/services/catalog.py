@@ -90,7 +90,10 @@ def college_detail(db: Session, c: College) -> dict:
             "institution_type": c.institution_type,
             "university": c.university.name if c.university else None,
             "established_year": c.established_year, "recognition_status": c.recognition_status,
-            "recognition_year": c.recognition_year, "is_demo": c.is_demo, "courses": courses, **provenance(c),
+            "recognition_year": c.recognition_year, "recognition_note": c.recognition_note,
+            "website_source": c.website_source, "location_source": c.location_source,
+            "pincode": c.pincode, "contact_email": c.contact_email, "contact_phone": c.contact_phone,
+            "is_demo": c.is_demo, "courses": courses, **provenance(c),
         },
         "admission": {
             "entrance_exam": "NEET-UG",

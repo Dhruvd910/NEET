@@ -326,6 +326,13 @@ class College(Base, Provenance):
     website: Mapped[str | None] = mapped_column(String(300))
     recognition_status: Mapped[str | None] = mapped_column(String(120))
     recognition_year: Mapped[str | None] = mapped_column(String(9))
+    recognition_note: Mapped[str | None] = mapped_column(Text)  # the regulator's full remark, as published
+    pincode: Mapped[str | None] = mapped_column(String(10))
+    contact_email: Mapped[str | None] = mapped_column(String(254))
+    contact_phone: Mapped[str | None] = mapped_column(String(60))
+    # Where the website and map location came from; these are matched automatically, so they are shown separately.
+    website_source: Mapped[str | None] = mapped_column(String(120))
+    location_source: Mapped[str | None] = mapped_column(String(120))
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
 
     university: Mapped[University | None] = relationship(lazy="joined")

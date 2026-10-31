@@ -11,3 +11,8 @@ backend/storage/
 backend/.e2e/
 backend/test-results/
 deploy/.env
+backend/.env.live
+backend/live/
+# lookup caches written by the college data jobs (rebuilt on demand)
+backend/data/sources/*_cache.json
+backend/data/sources/nmc_details.json

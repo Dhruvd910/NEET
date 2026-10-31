@@ -4,6 +4,11 @@
     python -m app.maintenance grow-question-bank --per-section 100   # AI-written, independently checked
     python -m app.maintenance export-questions --file questions.json   # copy a question bank between databases
     python -m app.maintenance import-questions --file questions.json
+    python -m app.maintenance import-colleges      # official NMC list of MBBS colleges (--offline: saved snapshot)
+    python -m app.maintenance locate-colleges      # map location + website from Wikidata / OpenStreetMap
+    python -m app.maintenance check-websites       # drop websites that do not answer
+    python -m app.maintenance refresh-nearby-all   # surroundings from OpenStreetMap (slow; resumable)
+    python -m app.maintenance create-admin --email you@example.com
 """
 import argparse
 import json
@@ -79,10 +84,17 @@ def import_questions(db: Session, path: str) -> tuple[int, int]:
 def main():
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser()
-    parser.add_argument("job", choices=["purge-unconsented", "grow-question-bank", "export-questions", "import-questions"])
+    parser.add_argument("job", choices=["purge-unconsented", "grow-question-bank", "export-questions", "import-questions",
+                                        "import-colleges", "locate-colleges", "check-websites", "refresh-nearby-all",
+                                        "create-admin"])
     parser.add_argument("--per-section", type=int, default=100)
     parser.add_argument("--file", default="questions.json")
+    parser.add_argument("--offline", action="store_true", help="import-colleges: use the saved NMC snapshot")
+    parser.add_argument("--limit", type=int, default=None, help="locate-colleges / refresh-nearby-all: at most N colleges")
+    parser.add_argument("--email", help="create-admin: the admin's email (you are asked for the password)")
     args = parser.parse_args()
+    if args.job in ("import-colleges", "locate-colleges", "check-websites", "refresh-nearby-all", "create-admin"):
+        return catalogue_job(args)
     if args.job == "grow-question-bank":
         from sqlalchemy import func
 
@@ -105,6 +117,78 @@ def main():
         elif args.job == "import-questions":
             added, skipped = import_questions(db, args.file)
             print(f"Imported {added} question(s); skipped {skipped} already present or for unknown chapters.")
+
+
+def catalogue_job(args):
+    """Real college catalogue (services/real_colleges.py) and the first real admin account."""
+    from app.services import real_colleges as rc
+    with SessionLocal() as db:
+        if args.job == "import-colleges":
+            snap = (json.loads((rc.DATA / "nmc_mbbs.json").read_text(encoding="utf-8")) if args.offline
+                    else rc.fetch_nmc())
+            print(f"NMC list fetched {snap['fetched']}: {len(snap['rows'])} colleges.")
+            print(f"Imported: {rc.import_nmc(db, snap)}", flush=True)
+            print(f"NMC college details: {rc.fetch_nmc_details(db, snap, args.limit)}", flush=True)
+        elif args.job == "locate-colleges":
+            print(f"OpenStreetMap (bulk match): {rc.match_osm(db)}", flush=True)
+            try:
+                print(f"Wikidata: {rc.enrich_from_wikidata(db, args.limit)}", flush=True)
+            except Exception as e:  # noqa: BLE001 — Wikidata is optional; the OpenStreetMap search still runs
+                print(f"Wikidata stopped early ({e}); run again later to continue.", flush=True)
+            print(f"OpenStreetMap (search, slow): {rc.enrich_locations(db, args.limit)}", flush=True)
+        elif args.job == "check-websites":
+            print(f"Websites: {rc.verify_websites(db)}")
+        elif args.job == "refresh-nearby-all":
+            print(f"Nearby places: {refresh_nearby_all(db, args.limit)}")
+        elif args.job == "create-admin":
+            print(create_admin(db, args.email))
+
+
+def refresh_nearby_all(db, limit=None) -> dict:
+    """Surroundings for every located college from OpenStreetMap (Overpass), slowly, to respect its fair-use policy.
+    Colleges that already have places are skipped, so the job can be stopped and resumed."""
+    import time
+
+    from app.models import College, NearbyPlace
+    from app.services import places
+    todo = db.scalars(select(College).where(College.is_demo.is_(False), College.latitude.is_not(None),
+                                            ~College.id.in_(select(NearbyPlace.college_id)))).all()[:limit]
+    done = failed = 0
+    for i, c in enumerate(todo, 1):
+        for attempt in range(3):
+            try:
+                rows = places.refresh_nearby(db, c, fetch=places.fetch_overpass)
+                done += 1
+                print(f"  [{i}/{len(todo)}] {c.name}: {len(rows)} places", flush=True)
+                break
+            except places.PlacesError as e:
+                db.rollback()
+                if attempt == 2:
+                    failed += 1
+                    print(f"  [{i}/{len(todo)}] {c.name}: failed ({e})", flush=True)
+                time.sleep(30 * (attempt + 1))  # busy server: back off
+        time.sleep(3)
+    return {"refreshed": done, "failed": failed, "remaining": len(todo) - done - failed}
+
+
+def create_admin(db, email: str | None) -> str:
+    """The first real admin. The password is typed in the terminal and never shown or stored in plain text."""
+    import getpass
+
+    from app.models import Role, User
+    from app.security import hash_password
+    email = (email or input("Admin email: ")).strip().lower()
+    password = getpass.getpass("Password (min. 12 characters): ")
+    if len(password) < 12 or password != getpass.getpass("Repeat password: "):
+        raise SystemExit("Passwords must match and be at least 12 characters.")
+    user = db.scalar(select(User).where(User.email == email))
+    if user is None:
+        user = User(email=email, password_hash=hash_password(password), role=Role.admin)
+        db.add(user)
+    else:
+        user.password_hash, user.role = hash_password(password), Role.admin
+    db.commit()
+    return f"{email} is now an admin."
 
 
 if __name__ == "__main__":
