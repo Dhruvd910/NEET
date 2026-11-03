@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_ui.html" import error_box %}
+{% block title %}Create your account · NEET Compass{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-sm">
+  <h1 class="h1 mb-1">Welcome to NEET Compass</h1>
+  <p class="muted mb-4">You're new here, so a couple of details before we text a code to <span class="font-mono">{{ phone }}</span>.</p>
+  <form method="post" action="/login/phone/signup" class="card space-y-4">
+    <div><label class="label" for="name">Your name</label>
+      <input class="input" id="name" name="name" required minlength="2" maxlength="80" autocomplete="name" value="{{ form.name or '' }}"></div>
+    <label class="flex items-start gap-2 text-sm text-slate-700">
+      <input type="checkbox" name="adult" required class="mt-1" {{ 'checked' if form.adult }}>
+      <span>I am 18 or older. <span class="text-slate-500">(Under 18? <a class="text-teal-700 underline" href="/register">Sign up with email</a> so a parent can give consent.)</span></span>
+    </label>
+    <label class="flex items-start gap-2 text-sm text-slate-700">
+      <input type="checkbox" name="terms" required class="mt-1" {{ 'checked' if form.terms }}>
+      <span>I accept the <a class="text-teal-700 underline" href="/terms" target="_blank">terms</a> and the <a class="text-teal-700 underline" href="/privacy" target="_blank">privacy policy</a>: my marks, rank and category are private, used only for my guidance,
+        never shown publicly or sold, and I can delete them any time. My phone number is verified by Tekurious AI-Auth,
+        which sends the code. My sign-ins (time, browser and a shortened network address) are kept for
+        {{ settings.login_history_days }} days for account security.</span>
+    </label>
+    {{ error_box(error) }}
+    <button class="btn w-full">Text me a code</button>
+  </form>
+  <p class="muted mt-3"><a class="text-teal-700 underline" href="/login">Use a different number</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+{# Student / Admin switch shown above both sign-in pages. #}
+{% macro who_tabs(active) -%}
+<div class="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-sm font-semibold" role="tablist" aria-label="Sign in as">
+  <a role="tab" href="/login" aria-selected="{{ 'true' if active == 'student' else 'false' }}"
+     class="rounded-lg px-3 py-2 text-center {{ 'bg-white text-teal-800 shadow-sm' if active == 'student' else 'text-slate-600 hover:text-slate-900' }}">Student</a>
+  <a role="tab" href="/admin/login" aria-selected="{{ 'true' if active == 'admin' else 'false' }}"
+     class="rounded-lg px-3 py-2 text-center {{ 'bg-white text-slate-900 shadow-sm' if active == 'admin' else 'text-slate-600 hover:text-slate-900' }}">Admin</a>
+</div>
+{%- endmacro %}

@@ -54,7 +54,7 @@ def test_minor_stays_locked_until_the_guardian_consents(page: Page, browser: Bro
     page.get_by_label("Password").fill(PASSWORD)
     page.get_by_label("Yes").check()
     page.get_by_label(re.compile("guardian's email", re.I)).fill("parent@example.test")
-    page.get_by_label("I have read the privacy notice").check()
+    page.get_by_label(re.compile("I have read the privacy")).check()
     page.get_by_role("button", name="Create account").click()
     expect(page.get_by_text("Waiting for your parent or guardian").first).to_be_visible()
 
@@ -80,9 +80,20 @@ def test_admin_sees_readiness_and_students_do_not_see_admin(page: Page):
     page.get_by_role("button", name="Sign out").click()
     expect(page.get_by_role("link", name="Sign in")).to_be_visible()
 
-    sign_in(page, "admin@demo.test")
-    page.goto("/admin")
-    expect(page.get_by_role("heading", name="Go-live readiness")).to_be_visible()
+    # Admins use their own sign-in page (the "Admin" switch on the sign-in page).
+    page.goto("/login")
+    page.get_by_role("tab", name="Admin").click()
+    page.get_by_label("Admin email").fill("admin@demo.test")
+    page.get_by_label("Password").fill(PASSWORD)
+    page.get_by_role("button", name="Sign in as admin").click()
+    expect(page).to_have_url(f"{BASE}/admin")
+    expect(page.get_by_role("heading", name=re.compile("Go-live checklist"))).to_be_visible()
     expect(page.get_by_text("DPDP Act 2023 legal review completed")).to_be_visible()
-    page.get_by_role("tab", name="Eligibility rules").click()
+    page.get_by_role("link", name="Eligibility rules").click()
     expect(page.get_by_role("heading", name=re.compile("Missing rules"))).to_be_visible()
+
+    # A student's file, opened from the register.
+    page.get_by_role("link", name="Students").click()
+    page.get_by_role("link", name="Open file").first.click()
+    expect(page.get_by_text(re.compile(r"#\d{5}"))).to_be_visible()  # the file number in the file's header
+    expect(page.get_by_role("heading", name=re.compile("Attendance"))).to_be_visible()

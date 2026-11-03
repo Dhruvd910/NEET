@@ -11,16 +11,18 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.models import (
-    AcademicRecord, ChapterProgress, ChatSession, ConsentRecord, ExamAttempt, ExamProfile, MockTest,
+    AcademicRecord, ChapterProgress, ChatSession, ConsentRecord, ExamAttempt, ExamProfile, LoginEvent, MockTest,
     PreferenceList, RoadmapItem, SavedCollege, StudentProfile, StudyPlan, User,
 )
 from app.security import (
-    COOKIE_NAME, CSRF_COOKIE, authenticated_user, create_token, csrf_token_for, hash_password,
+    COOKIE_NAME, CSRF_COOKIE, authenticated_user, create_token, csrf_token_for, hash_password, record_login,
     verify_password,
 )
 from app.services.email import send_email
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+# Password hash for accounts that sign in by phone or Google: never matches any password.
+NO_PASSWORD = "no-password"
 # Syntax check only, so reserved test domains (*.test) work for demo accounts.
 Email = Annotated[str, Field(max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
 
@@ -99,7 +101,7 @@ def _request_guardian_consent(db: Session, user: User) -> None:
 
 
 @router.post("/register", status_code=201)
-def register(body: RegisterIn, resp: Response, db: Session = Depends(get_db)):
+def register(body: RegisterIn, resp: Response, request: Request, db: Session = Depends(get_db)):
     email = body.email.lower()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(409, "An account with this email already exists.")
@@ -114,17 +116,73 @@ def register(body: RegisterIn, resp: Response, db: Session = Depends(get_db)):
     if user.is_minor:
         _request_guardian_consent(db, user)
     db.commit()
+    record_login(db, user, "signup", request)
     _set_cookie(resp, user)
     return user_out(user)
 
 
 @router.post("/login")
-def login(body: LoginIn, resp: Response, db: Session = Depends(get_db)):
+def login(body: LoginIn, resp: Response, request: Request, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.email == body.email.lower()))
+    if user is not None and user.password_hash == NO_PASSWORD:
+        how = "Google (\"Continue with Google\")" if user.google_sub else "your phone number"
+        raise HTTPException(401, f"This account signs in with {how}, not a password.")
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(401, "Incorrect email or password.")
+    record_login(db, user, "password", request)
     _set_cookie(resp, user)
     return user_out(user)
+
+
+# ---------------------------------------------------------------- Google sign-in (pages in web/routes_auth.py)
+
+class GoogleSignupIn(BaseModel):
+    """The questions a Google sign-up still has to answer: Google tells us who, not whether they are under 18."""
+    is_minor: bool
+    guardian_email: Email | None = None
+    accept_privacy_notice: bool
+
+    @model_validator(mode="after")
+    def check_consent(self):
+        if not self.accept_privacy_notice:
+            raise ValueError("Please read and accept the privacy notice.")
+        if self.is_minor and not self.guardian_email:
+            raise ValueError("Students under 18 need a parent/guardian's email so they can give consent.")
+        return self
+
+
+def google_user(db: Session, claims: dict) -> User | None:
+    """The account for a verified Google identity: by Google id, or an existing account with the same (verified)
+    email, which is then linked so the student can use either way to sign in."""
+    user = db.scalar(select(User).where(User.google_sub == claims["sub"]))
+    if user is None:
+        user = db.scalar(select(User).where(User.email == claims["email"].lower()))
+        if user is not None:
+            user.google_sub = claims["sub"]
+    if user is not None:
+        user.name = user.name or claims.get("name")
+        db.commit()
+    return user
+
+
+def register_google(db: Session, claims: dict, body: GoogleSignupIn) -> User:
+    email = claims["email"].lower()
+    if body.is_minor and body.guardian_email and body.guardian_email.lower() == email:
+        raise HTTPException(422, "The parent/guardian's email must be different from yours.")
+    if db.scalar(select(User).where((User.email == email) | (User.google_sub == claims["sub"]))):
+        raise HTTPException(409, "An account with this email already exists. Sign in instead.")
+    user = User(email=email, password_hash=NO_PASSWORD, google_sub=claims["sub"], name=claims.get("name"),
+                is_minor=body.is_minor, guardian_consent=False,
+                guardian_consent_status="pending" if body.is_minor else "not_required",
+                guardian_email=body.guardian_email.lower() if body.is_minor and body.guardian_email else None)
+    db.add(user)
+    db.flush()
+    db.add(ConsentRecord(user_id=user.id, kind="privacy_notice", action="granted",
+                         notice_version=get_settings().privacy_notice_version, method="signup_checkbox_google"))
+    if user.is_minor:
+        _request_guardian_consent(db, user)
+    db.commit()
+    return user
 
 
 @router.post("/logout")
@@ -203,10 +261,11 @@ def export_my_data(user: User = Depends(authenticated_user), db: Session = Depen
     def rows(model):
         return [{c.name: getattr(r, c.name) for c in model.__table__.columns}
                 for r in db.scalars(select(model).where(model.user_id == user.id))]
-    data = {"account": {"email": user.email, "created_at": user.created_at, "is_minor": user.is_minor,
-                        "guardian_consent_status": user.guardian_consent_status,
-                        "guardian_email": user.guardian_email}}
-    for model in (StudentProfile, ExamProfile, AcademicRecord, MockTest, SavedCollege, PreferenceList,
+    data = {"account": {"email": user.email, "phone": user.phone, "name": user.name, "created_at": user.created_at,
+                        "is_minor": user.is_minor, "guardian_consent_status": user.guardian_consent_status,
+                        "guardian_email": user.guardian_email, "signs_in_with_google": bool(user.google_sub),
+                        "last_login_at": user.last_login_at, "login_count": user.login_count}}
+    for model in (LoginEvent, StudentProfile, ExamProfile, AcademicRecord, MockTest, SavedCollege, PreferenceList,
                   RoadmapItem, ChatSession, ConsentRecord, ExamAttempt, ChapterProgress, StudyPlan):
         data[model.__tablename__] = rows(model)
     return data

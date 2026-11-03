@@ -73,7 +73,7 @@ class Provenance:
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(254), unique=True, index=True)  # empty for phone-only accounts
     password_hash: Mapped[str] = mapped_column(String(300))
     role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False), default=Role.student)
     is_minor: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -86,9 +86,33 @@ class User(Base):
     guardian_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     guardian_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Phone sign-in (Tekurious AI-Auth): verified phone in E.164 form and Tekurious's user id.
+    phone: Mapped[str | None] = mapped_column(String(20), unique=True, index=True)
+    tekurious_user_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    # Google sign-in: Google's stable account id ("sub"), and the name Google shares.
+    google_sub: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(120))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    login_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     profile: Mapped[StudentProfile | None] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False)
+
+    @property
+    def label(self) -> str:
+        """How to refer to the person on screen: their name, else email, else phone."""
+        return self.name or self.email or self.phone or f"User {self.id}"
+
+
+class LoginEvent(Base):
+    """One row per successful sign-in, for the admin's sign-in history. Kept for LOGIN_HISTORY_DAYS, then purged."""
+    __tablename__ = "login_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    method: Mapped[str] = mapped_column(String(20))  # password / phone / google / signup
+    ip_prefix: Mapped[str | None] = mapped_column(String(45))  # last part removed, e.g. 203.0.113.x
+    user_agent: Mapped[str | None] = mapped_column(String(200))
 
 
 class StudentProfile(Base):

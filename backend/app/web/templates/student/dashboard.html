@@ -3,7 +3,9 @@
 {% block title %}Dashboard · NEET Compass{% endblock %}
 {% block content %}
 <div class="space-y-6">
-  {% call page_header("Hello, future Dr." ~ ((" " ~ profile.display_name) if profile and profile.display_name else ""), "Stethoscope", "Future doctor's desk") %}
+  {# The name from the profile form, else the one given at sign-up (Google, phone). #}
+  {% set who = (profile.display_name if profile and profile.display_name else me.name) or "" %}
+  {% call page_header("Hello, future Dr." ~ ((" " ~ who) if who else ""), "Stethoscope", "Future doctor's desk") %}
     Your NEET journey at a glance.
   {% endcall %}
 

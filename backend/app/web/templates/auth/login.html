@@ -1,16 +1,55 @@
 {% extends "base.html" %}
 {% from "_ui.html" import error_box %}
+{% from "_google.html" import google_button %}
+{% from "auth/_who.html" import who_tabs %}
 {% block title %}Sign in · NEET Compass{% endblock %}
 {% block content %}
 <div class="mx-auto max-w-sm">
-  <h1 class="h1 mb-4">Sign in</h1>
-  <form method="post" action="/login" class="card space-y-3">
-    <input type="hidden" name="next" value="{{ next or '/dashboard' }}">
-    <div><label class="label" for="email">Email</label><input class="input" id="email" name="email" type="email" required autocomplete="email" value="{{ email or '' }}"></div>
-    <div><label class="label" for="password">Password</label><input class="input" id="password" name="password" type="password" required autocomplete="current-password"></div>
-    {{ error_box(error) }}
-    <button class="btn w-full">Sign in</button>
-  </form>
-  <p class="muted mt-3">New here? <a class="text-teal-700 underline" href="/register">Create an account</a></p>
+  {{ who_tabs("student") }}
+  <h1 class="h1 mb-1">Sign in or sign up</h1>
+  <p class="muted mb-4">{{ "Continue with Google, or use" if settings.google_enabled else "Use" }} your mobile number. No password needed.</p>
+
+  {% if settings.google_enabled %}<div class="card mb-3">{{ google_button(next, "or use your phone") }}</div>{% endif %}
+
+  {% if settings.phone_enabled %}
+    {% if settings.phone_allow_stub %}
+      <div class="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" role="note">
+        <strong>Testing:</strong> phone sign-in is still being developed. No SMS is sent yet; the code is
+        <span class="font-mono font-bold">123456</span> for every number.
+      </div>
+    {% endif %}
+    <form method="post" action="/login/phone" class="card space-y-3">
+      <input type="hidden" name="next" value="{{ next or '/dashboard' }}">
+      <label class="label" for="number">Mobile number</label>
+      {# Dial code only: flag emojis don't render on Windows. The country name is in each option's title. #}
+      <div class="flex gap-2">
+        <select name="dial" class="input !w-[5.5rem] shrink-0 !px-2" aria-label="Country code">
+          {% for c in countries or [{"dialCode": "+91", "name": "India"}] %}
+            <option value="{{ c.dialCode }}" title="{{ c.name }}" {{ 'selected' if c.dialCode == '+91' }}>{{ c.dialCode }}</option>
+          {% endfor %}
+        </select>
+        <input class="input min-w-0 flex-1 text-base tracking-wide" id="number" name="number" type="tel" inputmode="tel"
+               autocomplete="tel-national" required placeholder="98765 43210" value="{{ number or '' }}">
+      </div>
+      {{ error_box(phone_error) }}
+      <button class="btn w-full">Send code</button>
+      <p class="text-xs text-slate-500">Phone sign-up is for students aged 18 or over. Under 18?
+        <a class="text-teal-700 underline" href="/register">Sign up with email</a> so a parent can give consent.</p>
+    </form>
+  {% endif %}
+
+  <details class="card mt-4" {{ 'open' if error or not settings.phone_enabled }}>
+    <summary class="cursor-pointer text-sm font-medium text-slate-700">Use email and password instead</summary>
+    <div class="mt-3 space-y-3">
+      <form method="post" action="/login" class="space-y-3">
+        <input type="hidden" name="next" value="{{ next or '/dashboard' }}">
+        <div><label class="label" for="email">Email</label><input class="input" id="email" name="email" type="email" required autocomplete="email" value="{{ email or '' }}"></div>
+        <div><label class="label" for="password">Password</label><input class="input" id="password" name="password" type="password" required autocomplete="current-password"></div>
+        {{ error_box(error) }}
+        <button class="btn w-full">Sign in</button>
+      </form>
+      <p class="muted">No account? <a class="text-teal-700 underline" href="/register">Create one with email</a></p>
+    </div>
+  </details>
 </div>
 {% endblock %}

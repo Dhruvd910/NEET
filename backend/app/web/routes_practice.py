@@ -148,7 +148,7 @@ def attempt_page(attempt_id: int, p: Page = Depends(student_page), step: int = 1
     view = exams.attempt_view(p.db, a)
     if view["status"] == "ready":
         prof = p.user.profile
-        name = (prof.display_name if prof else None) or p.user.email
+        name = (prof.display_name if prof else None) or p.user.label
         return p.render("practice/exam_day.html", v=view, step=step if step in (1, 2, 3) else 1, name=name,
                         total=sum(view["section_counts"].values()), minutes=round(view["duration_seconds"] / 60),
                         code=view["booklet_code"] or "Q1", error=None, roll="", series="", num="")

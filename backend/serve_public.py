@@ -7,6 +7,7 @@
   tunnel (Tailscale Funnel or `cloudflared`) carries visitors' HTTPS traffic to it.
 - The public site has its own data in backend/live/ (database and files), separate from development data.
 - First run creates backend/.env.live with a random session secret. Keep that file private; it is git-ignored.
+  Put other secrets for the public site there too, e.g. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET for Google sign-in.
 - Real data only: the official NMC college list (python -m app.maintenance import-colleges). No demo data is
   loaded. Create your admin account with: python -m app.maintenance create-admin --email you@example.com
 - Tailscale gives a fixed address named after this PC (https://neet-compass.<tailnet>.ts.net). A quick tunnel's
@@ -76,10 +77,18 @@ def tailscale_url() -> str | None:
     exe = shutil.which("tailscale") or TAILSCALE
     if not Path(exe).exists():
         return None
-    try:
-        status = json.loads(subprocess.run([exe, "status", "--json"], capture_output=True, text=True, timeout=20).stdout)
-    except (OSError, ValueError, subprocess.TimeoutExpired):
-        return None
+    status = {}
+    for _ in range(36):  # just after Windows starts, Tailscale can take a minute or two to connect
+        try:
+            status = json.loads(subprocess.run([exe, "status", "--json"], capture_output=True, text=True,
+                                               timeout=20).stdout)
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            status = {}
+        if status.get("BackendState") == "Running":
+            break
+        if status.get("BackendState") in ("NeedsLogin", "Stopped"):
+            return None  # signed out or switched off: use the Cloudflare quick tunnel instead
+        time.sleep(5)
     if status.get("BackendState") != "Running":
         return None
     # Funnel stays on across restarts (--bg); running it again is harmless and repairs a missing setting.
@@ -106,8 +115,10 @@ def main() -> None:
     tunnel = None
     if url is None:
         tunnel, url = start_tunnel()
+    # Everything else in .env.live (e.g. GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET) is passed to the site as is.
     env = {
         **os.environ,
+        **{k: v for k, v in s.items() if v},
         "ENV": "staging",                     # production mode needs PostgreSQL + SMTP; this PC has neither
         "DATABASE_URL": f"sqlite:///{(LIVE / 'neet.db').as_posix()}",
         "STORAGE_DIR": str(LIVE / "storage"),

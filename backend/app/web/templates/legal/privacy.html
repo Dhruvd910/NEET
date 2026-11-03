@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice %}
+{% block title %}Privacy policy · NEET Compass{% endblock %}
+{% macro h(t) %}<h2 class="h2 mt-8 mb-2">{{ t }}</h2>{% endmacro %}
+{% block content %}
+<article class="mx-auto max-w-3xl space-y-3 text-[15px] leading-relaxed text-slate-700">
+  {% call page_header("Privacy policy", "BadgeId", "Your data") %}Version {{ settings.privacy_notice_version }} · last updated {{ updated }}{% endcall %}
+  {% call notice() %}In short: we collect only what we need to guide you, we never sell it or show it publicly, there
+    are no ads or trackers, and you can download or delete everything at any time from your profile.{% endcall %}
+
+  {{ h("Who we are") }}
+  <p>NEET Compass is a free, non-commercial guidance website for NEET-UG students in India, at
+    <a class="text-teal-700 underline" href="{{ settings.public_app_url }}">{{ settings.public_app_url }}</a>.
+    {% if contact %}Questions or requests: <a class="text-teal-700 underline" href="mailto:{{ contact }}">{{ contact }}</a>.{% endif %}</p>
+
+  {{ h("What we collect, and why") }}
+  <ul class="list-disc space-y-1.5 pl-6">
+    <li><strong>Your account:</strong> your email or mobile number, your name, and whether you are under 18. If you
+      sign in with Google we receive only your name, email address and Google account ID. If you sign in with your
+      phone we receive your verified number and an account ID from our phone-verification provider.</li>
+    <li><strong>For students under 18:</strong> a parent or guardian's email, and their consent (name, relationship,
+      time). Until they consent we store none of the student's profile, ranks, scores or chats.</li>
+    <li><strong>What you choose to add:</strong> class, state and domicile, preferences and budget, NEET rank or
+      estimate, mock-test scores, practice-test answers, study plan and syllabus progress, saved colleges, draft
+      preference lists and questions you ask the assistant.</li>
+    <li><strong>Category and disability (PwD) status</strong> are optional. They are used only to compare you with
+      the matching counselling cutoffs and are never shown to anyone else.</li>
+    <li><strong>Sign-in history:</strong> the time, how you signed in, your browser and a shortened network address
+      (the last part removed), kept for {{ settings.login_history_days }} days to keep accounts secure.</li>
+    <li><strong>Server logs:</strong> page addresses, status and timing, for running the service. We do not log the
+      contents of forms.</li>
+  </ul>
+
+  {{ h("What we do not do") }}
+  <ul class="list-disc space-y-1.5 pl-6">
+    <li>We do not sell, rent or share your data for advertising. There are no ads, analytics trackers or
+      third-party cookies.</li>
+    <li>We do not show your marks, rank, category or scores to other students or the public.</li>
+    <li>Predictions come from past official cutoffs, not from profiling you.</li>
+  </ul>
+
+  {{ h("Who at NEET Compass can see your account") }}
+  <p>A small number of site administrators can see an account's activity to run and improve the service, help
+    students and keep accounts safe: your name and contact, how and when you sign in, your practice-test results,
+    study-plan and syllabus progress, how many assistant chats you started and which colleges you saved.</p>
+  <ul class="list-disc space-y-1.5 pl-6">
+    <li>Administrators <strong>cannot</strong> see your assistant chat messages, your category or your disability (PwD)
+      status, and see only whether you added a NEET rank, not the rank itself.</li>
+    <li>Every time an administrator opens a student's file, it is recorded in an audit log.</li>
+  </ul>
+
+  {{ h("Services that process data for us") }}
+  <ul class="list-disc space-y-1.5 pl-6">
+    <li><strong>Google</strong>, if you choose "Continue with Google": to confirm who you are.</li>
+    <li><strong>Tekurious AI-Auth</strong>, if you sign in with your phone: to send and check the SMS code.</li>
+    <li><strong>OpenRouter and the AI model provider</strong> (Anthropic Claude), when you use the assistant: your
+      question and the facts needed to answer it, which can include your own profile and ranks. We ask them not to
+      keep or train on this data.</li>
+    <li><strong>Your browser's speech service</strong> (for example Google in Chrome), if you use voice input. Audio
+      goes straight from your browser to that service; we receive only the text.</li>
+    <li><strong>An email provider</strong>, to send a parent or guardian the consent link.</li>
+    <li><strong>OpenStreetMap</strong> for maps. Your browser loads map tiles from it; no personal data is sent by us.</li>
+  </ul>
+  <p>Some of these services may process data outside India.</p>
+
+  {{ h("Cookies") }}
+  <p>We use only essential cookies: one that keeps you signed in, one that protects forms against forgery, and
+    short-lived ones during sign-in. Your browser may also remember small settings (like your compare list) on your
+    own device.</p>
+
+  {{ h("How long we keep it") }}
+  <p>Your data stays until you delete your account. Sign-in history is deleted after {{ settings.login_history_days }}
+    days. Accounts of under-18 students whose parent does not consent are deleted after
+    {{ settings.unconsented_minor_retention_days }} days. Backups are overwritten within 14 days.</p>
+
+  {{ h("Your rights") }}
+  <ul class="list-disc space-y-1.5 pl-6">
+    <li><strong>See and download</strong> everything we hold about you: Profile → "Download my data".</li>
+    <li><strong>Correct</strong> it: edit your profile at any time.</li>
+    <li><strong>Delete</strong> your account and its data: Profile → "Delete my account". College reviews you wrote stay
+      on the college page without your name.</li>
+    <li><strong>Withdraw consent</strong> (for example a parent for their child) by deleting the account or contacting us.</li>
+  </ul>
+  <p>We follow India's Digital Personal Data Protection Act, 2023. This policy is under legal review and may be
+    updated; we will show the new version when you next sign in.</p>
+</article>
+{% endblock %}

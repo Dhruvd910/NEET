@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.config import get_settings
 from app.models import College, CollegeCourse, ExamProfile, SavedCollege, StudentProfile, StudentReview
 from app.routers import colleges as colleges_api
 from app.routers import counselling as counselling_api
@@ -197,3 +198,18 @@ def neet_info(p: Page = Depends(page)):
 @router.get("/careers", response_class=HTMLResponse)
 def careers(p: Page = Depends(page)):
     return p.render("info.html", articles=counselling_api.info("careers", p.db), **INFO["careers"])
+
+
+# ------------------------------------------------------------------ legal pages
+
+LEGAL_UPDATED = "3 Nov 2026"
+
+
+@router.get("/privacy", response_class=HTMLResponse)
+def privacy(p: Page = Depends(page)):
+    return p.render("legal/privacy.html", updated=LEGAL_UPDATED, contact=get_settings().contact_email)
+
+
+@router.get("/terms", response_class=HTMLResponse)
+def terms(p: Page = Depends(page)):
+    return p.render("legal/terms.html", updated=LEGAL_UPDATED, contact=get_settings().contact_email)

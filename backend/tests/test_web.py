@@ -2,6 +2,7 @@
 import re
 
 import pytest
+from sqlalchemy import select
 
 from app.web.routes_assistant import chat_text
 from app.web.routes_practice import stem_html
@@ -11,7 +12,7 @@ HX = {"HX-Request": "true"}
 
 
 @pytest.mark.parametrize("path", ["/", "/colleges", "/colleges?state=Delhi", "/predictor", "/neet", "/careers",
-                                  "/compare", "/counselling", "/login", "/register"])
+                                  "/compare", "/counselling", "/login", "/register", "/privacy", "/terms"])
 def test_public_pages_render(client, path):
     r = client.get(path)
     assert r.status_code == 200
@@ -120,7 +121,19 @@ def test_assistant_chat(student):
 
 
 def test_admin_pages_are_admin_only(student):
-    assert student.get("/admin").status_code == 403
+    r = student.get("/admin", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/admin/login"
+
+
+def test_admin_login_page(client):
+    assert "Admin sign-in" in client.get("/admin/login").text
+    assert client.get("/admin", follow_redirects=False).headers["location"] == "/admin/login"
+    bad = client.post("/admin/login", data={"email": "student@demo.test", "password": "demo-password-123"})
+    assert bad.status_code == 401 and "not an admin" in bad.text  # right password, but not an admin
+    assert client.post("/admin/login", data={"email": "admin@demo.test", "password": "wrong"}).status_code == 401
+    ok = client.post("/admin/login", data={"email": "admin@demo.test", "password": "demo-password-123"}, follow_redirects=False)
+    assert ok.status_code == 303 and ok.headers["location"] == "/admin"
+    assert "Students" in client.get("/admin").text and "Ward rounds" in client.get("/admin").text
 
 
 def test_admin_tabs_and_actions(admin):
@@ -143,3 +156,27 @@ def test_score_chart_layout():
                          {"test_date": "2026-02-01", "percent": 75, "subjects": {}}])
     total = next(s for s in chart["series"] if s["name"] == "Total")
     assert len(total["dots"]) == 2 and total["dots"][0]["y"] > total["dots"][1]["y"]  # higher score sits higher
+
+
+def test_admin_console_and_student_file(admin, db):
+    from app.models import AuditLog, StudentProfile, User
+    student = db.scalar(select(User).where(User.email == "student@demo.test"))
+    prof = db.scalar(select(StudentProfile).where(StudentProfile.user_id == student.id))
+    if prof is None:
+        prof = StudentProfile(user_id=student.id)
+        db.add(prof)
+    prof.category, prof.pwd = "OBC", True
+    db.commit()
+    overview = admin.get("/admin").text
+    assert "Ward rounds" in overview and "Go-live checklist" in overview
+    assert "Student register" in admin.get("/admin?tab=users").text
+    r = admin.get(f"/admin/students/{student.id}")
+    assert r.status_code == 200 and "Student file" in r.text and "Attendance" in r.text
+    assert "OBC" not in r.text  # category is never shown to admins
+    assert db.scalar(select(AuditLog).where(AuditLog.action == "view_student", AuditLog.entity_id == student.id))
+    assert admin.get("/admin/students/999999").status_code == 404
+
+
+def test_student_cannot_open_student_files(student):
+    r = student.get("/admin/students/1", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/admin/login"

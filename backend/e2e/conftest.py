@@ -7,6 +7,7 @@ The site runs from scripts/e2e_server.py on its own port with a fresh, seeded SQ
 tests never touch the development database.
 """
 import os
+import re
 import subprocess
 import sys
 import time
@@ -57,7 +58,7 @@ def new_student(page: Page):
     page.get_by_label("Email", exact=True).fill(f"e2e-{time.time_ns()}@example.test")
     page.get_by_label("Password").fill(PASSWORD)
     page.get_by_label("No", exact=True).check()
-    page.get_by_label("I have read the privacy notice").check()
+    page.get_by_label(re.compile("I have read the privacy")).check()
     page.get_by_role("button", name="Create account").click()
     expect(page).to_have_url(f"{BASE}/profile")
 

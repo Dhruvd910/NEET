@@ -14,13 +14,42 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.models import Role, User
+from app.models import LoginEvent, Role, User
 
 COOKIE_NAME = "neet_session"
 CSRF_COOKIE = "neet_csrf"
 CSRF_HEADER = "x-csrf-token"
 log = logging.getLogger(__name__)
 _SCRYPT = dict(n=2**14, r=8, p=1, dklen=64)
+
+
+def client_ip(request: Request) -> str:
+    if get_settings().trust_proxy_headers:
+        fwd = request.headers.get("x-forwarded-for")
+        if fwd:
+            return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def ip_prefix(ip: str) -> str | None:
+    """The network part only (203.0.113.x / 2001:db8:1:2::x): enough to spot unusual sign-ins, not a person's address."""
+    if not ip or ip == "unknown":
+        return None
+    if ":" in ip:
+        return ":".join(ip.split(":")[:4]) + "::x"
+    parts = ip.split(".")
+    return ".".join(parts[:3]) + ".x" if len(parts) == 4 else None
+
+
+def record_login(db: Session, user: User, method: str, request: Request | None) -> None:
+    """Sign-in history for the admin page (method, time, shortened IP, browser)."""
+    now = datetime.now(timezone.utc)
+    user.last_login_at = now
+    user.login_count = (user.login_count or 0) + 1
+    db.add(LoginEvent(user_id=user.id, at=now, method=method,
+                      ip_prefix=ip_prefix(client_ip(request)) if request else None,
+                      user_agent=(request.headers.get("user-agent") or "")[:200] or None if request else None))
+    db.commit()
 
 
 def hash_password(password: str) -> str:

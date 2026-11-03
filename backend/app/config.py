@@ -77,7 +77,21 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
 
     # Privacy / DPDP
-    privacy_notice_version: str = "2026-10-draft"
+    privacy_notice_version: str = "2026-11-b"
+    # Shown on the privacy policy and terms pages (and needed by Google's sign-in branding).
+    contact_email: str = ""
+    # Phone sign-in with an SMS code, through Tekurious AI-Auth (server-side only; never sent to browsers).
+    tekurious_api_key: str = ""
+    tekurious_base_url: str = "https://api.tekurious.si"
+    otp_resend_seconds: int = 45
+    # In Tekurious's test ("stub") mode no SMS is sent and a fixed code works for any number, so anyone could sign
+    # in as anyone. Refuse such sign-ins unless this is switched on deliberately for testing.
+    phone_allow_stub: bool = False
+    # Google sign-in (OAuth client from Google Cloud Console → APIs & Services → Credentials).
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # Sign-in history shown to admins; older rows are deleted by the daily purge job.
+    login_history_days: int = 180
     guardian_link_hours: int = 72
     unconsented_minor_retention_days: int = 7
     # Reference to the completed legal review (ticket, memo id). Empty = not done; shown on /admin readiness.
@@ -94,6 +108,14 @@ class Settings(BaseSettings):
             if v.startswith(prefix):
                 return "postgresql+psycopg://" + v[len(prefix):]
         return v
+
+    @property
+    def phone_enabled(self) -> bool:
+        return bool(self.tekurious_api_key)
+
+    @property
+    def google_enabled(self) -> bool:
+        return bool(self.google_client_id and self.google_client_secret)
 
     @property
     def llm_configured(self) -> bool:

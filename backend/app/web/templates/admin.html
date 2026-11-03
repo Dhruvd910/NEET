@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% from "_ui.html" import page_header, notice, error_box, status_badge %}
+{% from "_icons.html" import icon %}
 {% set READY_STYLE = {"ok": "bg-emerald-100 text-emerald-800", "todo": "bg-red-100 text-red-800", "warn": "bg-amber-100 text-amber-900"} %}
+{% set NAV = [("overview", "Overview", "HeartPulse"), ("users", "Students", "BadgeId"), ("imports", "Imports", "Clipboard"),
+              ("sources", "Sources", "Microscope"), ("rules", "Eligibility rules", "Scale"), ("info", "Info pages", "Pill"),
+              ("colleges", "Colleges", "Hospital"), ("issues", "Issues & reviews", "Flag")] %}
+{% set TONE = {"teal": ("text-teal-700", "bg-teal-50 ring-teal-100", "#0d9488"), "rose": ("text-rose-600", "bg-rose-50 ring-rose-100", "#e11d48"),
+               "sky": ("text-sky-700", "bg-sky-50 ring-sky-100", "#0284c7"), "violet": ("text-violet-700", "bg-violet-50 ring-violet-100", "#7c3aed"),
+               "amber": ("text-amber-700", "bg-amber-50 ring-amber-100", "#d97706")} %}
+{% set CHIP = {"emerald": "bg-emerald-50 text-emerald-800 ring-emerald-200", "sky": "bg-sky-50 text-sky-800 ring-sky-200",
+               "amber": "bg-amber-50 text-amber-900 ring-amber-200", "slate": "bg-slate-100 text-slate-600 ring-slate-200"} %}
+{% set FEED = {"signup": ("Plus", "bg-teal-600"), "signin": ("Stethoscope", "bg-sky-600"), "test": ("Clipboard", "bg-violet-600"),
+               "chat": ("MessageSquare", "bg-amber-500"), "mock": ("HeartPulse", "bg-rose-500")} %}
 {% macro form(action, cls="", upload=False) -%}
 <form method="post" action="/admin/{{ tab }}/{{ action }}" hx-post="/admin/{{ tab }}/{{ action }}" hx-target="#admin-page" hx-select="#admin-page" hx-swap="outerHTML"
       {% if upload %}hx-encoding="multipart/form-data" enctype="multipart/form-data"{% endif %} class="{{ cls }}">{{ caller() }}</form>
@@ -8,40 +19,166 @@
 {% macro action_button(action, label, fields={}, cls="btn-secondary !px-2 !py-1 text-xs") -%}
 <button class="{{ cls }}" hx-post="/admin/{{ tab }}/{{ action }}" hx-vals='{{ fields|tojson }}' hx-target="#admin-page" hx-select="#admin-page" hx-swap="outerHTML">{{ label }}</button>
 {%- endmacro %}
-{% block title %}Data & admin · NEET Compass{% endblock %}
+{% macro avatar(u, size="h-9 w-9 text-sm") -%}
+<span class="grid {{ size }} shrink-0 place-items-center rounded-full bg-gradient-to-br from-teal-500 to-sky-600 font-bold text-white">{{ (u.name or u.email or u.phone or "?")[:1]|upper }}</span>
+{%- endmacro %}
+{% block title %}Admin console · NEET Compass{% endblock %}
 {% block content %}
-<div class="space-y-6" id="admin-page">
-  {% call page_header("Data & admin", "Clipboard", "Administration") %}Imports, source terms, rules, review queues and data quality. Every change is audit-logged.{% endcall %}
-  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-    {% for k, val in [("Colleges", stats.colleges ~ " (" ~ stats.demo_colleges ~ " demo)"), ("Cutoff records", stats.cutoff_records), ("Open issues", stats.open_issues), ("Pending reviews", stats.pending_reviews)] %}
-      <div class="card"><p class="muted">{{ k }}</p><p class="text-xl font-semibold">{{ val }}</p></div>
-    {% endfor %}
-  </div>
+<div id="admin-page" class="space-y-5">
+  {# Console header: a monitor-style strip with an ECG trace, like a hospital system's top bar. #}
+  <header class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#03302d] via-[#0a4a46] to-[#12365c] px-5 py-5 text-white shadow-lg shadow-teal-950/20 sm:px-7">
+    <svg aria-hidden="true" viewBox="0 0 600 60" preserveAspectRatio="none" class="pointer-events-none absolute inset-x-0 bottom-3 h-14 w-full text-emerald-300/40">
+      <polyline fill="none" stroke="currentColor" stroke-width="2" points="0,40 120,40 140,40 150,22 160,52 172,8 184,46 196,40 300,40 320,40 330,24 340,52 352,10 364,46 376,40 480,40 500,40 510,22 520,52 532,8 544,46 556,40 600,40"/>
+    </svg>
+    <div class="relative flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3.5">
+        <span class="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/20">{{ icon("Stethoscope", "h-6 w-6 text-emerald-200") }}</span>
+        <div>
+          <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200/90">NEET Compass · Admin console</p>
+          <h1 class="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">Hello, Dr. {{ me.name.split(" ")[0] if me.name else "Admin" }}</h1>
+          <p class="text-sm text-teal-50/80">Every change here is audit-logged. Student files are confidential.</p>
+        </div>
+      </div>
+      <dl class="flex flex-wrap gap-2 text-xs">
+        {% for k, val in [("Colleges", stats.colleges), ("Pending reviews", stats.pending_reviews), ("Open issues", stats.open_issues)] %}
+          <div class="rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/15"><dt class="text-teal-100/80">{{ k }}</dt><dd class="text-base font-bold tabular-nums">{{ val|num }}</dd></div>
+        {% endfor %}
+      </dl>
+    </div>
+  </header>
 
-  <div role="tablist" aria-label="Admin sections" class="flex gap-1 overflow-x-auto border-b border-slate-200">
-    {% for key, label in TABS %}
-      <a role="tab" href="/admin?tab={{ key }}" hx-get="/admin?tab={{ key }}" hx-target="#admin-page" hx-select="#admin-page" hx-swap="outerHTML" hx-push-url="true"
-         aria-selected="{{ 'true' if tab == key else 'false' }}" class="whitespace-nowrap border-b-2 px-3 py-2 text-sm {{ 'border-teal-700 font-medium text-teal-800' if tab == key else 'border-transparent text-slate-600 hover:text-slate-900' }}">{{ label }}</a>
-    {% endfor %}
-  </div>
-
-  {% if msg %}{% call notice() %}{{ msg }}{% endcall %}{% endif %}
-  {{ error_box(error) }}
-
-  {% if tab == "overview" %}
-    <section class="card">
-      <h2 class="h2 mb-1">Go-live readiness</h2>
-      <p class="muted mb-3">{{ "No blocking items. Review the warnings before launch." if readiness.ready else "Items marked “to do” block real use. Each one is computed from the data and server configuration." }}</p>
-      <ul class="divide-y divide-slate-100 text-sm">
-        {% for i in readiness["items"] %}
-          <li class="flex flex-wrap items-start gap-3 py-2">
-            <span class="w-14 shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-medium {{ READY_STYLE[i.status] }}">{{ "to do" if i.status == "todo" else i.status }}</span>
-            <div class="min-w-0 flex-1"><p class="font-medium">{{ i.label }}</p><p class="text-slate-600">{{ i.detail }}</p></div>
-          </li>
+  {# One column on phones, pinned to the screen width: the section links scroll sideways inside their own bar. #}
+  <div class="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[210px_minmax(0,1fr)]">
+    <nav aria-label="Admin sections" class="min-w-0 lg:sticky lg:top-20 lg:self-start">
+      <ul class="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm lg:flex-col lg:overflow-visible">
+        {% for key, label, ic in NAV %}
+          <li><a href="/admin?tab={{ key }}" {% if tab == key %}aria-current="page"{% endif %}
+                 class="flex items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition {{ 'bg-teal-700 text-white shadow-sm' if tab == key else 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' }}">
+            {{ icon(ic, "h-4 w-4 shrink-0") }}{{ label }}</a></li>
         {% endfor %}
       </ul>
+    </nav>
+
+    <main class="min-w-0 space-y-5">
+      {% if msg %}{% call notice() %}{{ msg }}{% endcall %}{% endif %}
+      {{ error_box(error) }}
+      {% block admin_main %}
+
+  {% if tab == "overview" %}
+    <section aria-label="Vitals" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {% for c in vitals.cards %}
+        {% set t = TONE[c.tone] %}
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex items-center justify-between">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">{{ c.label }}</p>
+            <span class="grid h-8 w-8 place-items-center rounded-lg ring-1 {{ t[1] }}">{{ icon(c.icon, "h-4 w-4 " ~ t[0]) }}</span>
+          </div>
+          <p class="mt-1 font-display text-3xl font-extrabold tabular-nums text-slate-900">{{ c.value|num }}</p>
+          <p class="text-xs text-slate-500">{{ c.sub }}</p>
+          <svg viewBox="0 0 132 34" class="mt-2 h-8 w-full" role="img" aria-label="{{ c.label }} per day, last 14 days: {{ c.series|join(', ') }}">
+            <polyline fill="none" stroke="{{ t[2] }}" stroke-width="2" stroke-linejoin="round" points="{{ spark(c.series) }}"/>
+          </svg>
+        </div>
+      {% endfor %}
     </section>
-    <p class="text-xs text-slate-500">Cutoffs by status: {% for k, val in stats.cutoffs_by_status.items() %}{{ k }}: {{ val }}{{ " · " if not loop.last }}{% endfor %}</p>
+
+    <div class="grid grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="h2 flex items-center gap-2">{{ icon("HeartPulse", "h-5 w-5 text-rose-500") }}Ward rounds <span class="text-sm font-normal text-slate-500">latest activity</span></h2>
+          <a class="text-sm font-semibold text-teal-700 hover:underline" href="/admin?tab=users">All students →</a>
+        </div>
+        <ol class="relative space-y-3 border-l-2 border-slate-100 pl-5">
+          {% for e in feed %}
+            {% set f = FEED[e.kind] %}
+            <li class="relative">
+              <span class="absolute -left-[31px] top-0.5 grid h-5 w-5 place-items-center rounded-full ring-4 ring-white {{ f[1] }}">{{ icon(f[0], "h-3 w-3 text-white") }}</span>
+              <p class="text-sm"><a class="font-semibold text-slate-900 hover:text-teal-700" href="/admin/students/{{ e.user.id }}">{{ e.user.label }}</a>
+                <span class="text-slate-600">{{ e.text }}</span></p>
+              <p class="text-xs text-slate-400">{{ e.at|ist_long }}</p>
+            </li>
+          {% else %}<li class="text-sm text-slate-500">No activity yet.</li>{% endfor %}
+        </ol>
+      </section>
+
+      <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="h2 mb-1 flex items-center gap-2">{{ icon("Clipboard", "h-5 w-5 text-teal-700") }}Go-live checklist</h2>
+        <p class="muted mb-3 text-sm">{{ "No blocking items." if readiness.ready else "Items marked “to do” block real use." }}</p>
+        <ul class="space-y-2 text-sm">
+          {% for i in readiness["items"] %}
+            <li class="flex items-start gap-2.5">
+              <span class="mt-0.5 w-12 shrink-0 rounded px-1.5 py-0.5 text-center text-[11px] font-bold uppercase {{ READY_STYLE[i.status] }}">{{ "to do" if i.status == "todo" else i.status }}</span>
+              <details class="min-w-0 flex-1"><summary class="cursor-pointer font-medium text-slate-800">{{ i.label }}</summary><p class="mt-1 text-slate-600">{{ i.detail }}</p></details>
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="mt-4 text-xs text-slate-500">Cutoff records: {{ stats.cutoff_records|num }} · {% for k, val in stats.cutoffs_by_status.items() %}{{ k.value if k.value is defined else k }} {{ val }}{{ " · " if not loop.last }}{% endfor %}</p>
+      </section>
+    </div>
+
+  {% elif tab == "users" %}
+    <section aria-label="Totals" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {% for k, val, ic in [("Students", totals.users, "BadgeId"), ("New this week", totals.new_7d, "Plus"), ("Active today", totals.active_24h, "HeartPulse"),
+                            ("Active this week", totals.active_7d, "Stethoscope"), ("Sign-ins today", totals.signins_24h, "Clock"),
+                            ("Use phone", totals.phone, "Mic"), ("Use Google", totals.google, "Check"), ("Admins", totals.admins, "BadgeId")] %}
+        <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+          <span class="grid h-9 w-9 place-items-center rounded-xl bg-teal-50 ring-1 ring-teal-100">{{ icon(ic, "h-4 w-4 text-teal-700") }}</span>
+          <div><p class="text-xs text-slate-500">{{ k }}</p><p class="text-lg font-bold tabular-nums">{{ val }}</p></div>
+        </div>
+      {% endfor %}
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+        <h2 class="h2">Student register</h2>
+        <form method="get" action="/admin" hx-get="/admin" hx-trigger="input changed delay:300ms from:input, submit" hx-target="#admin-page" hx-select="#admin-page" hx-swap="outerHTML">
+          <input type="hidden" name="tab" value="users">
+          <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 focus-within:border-teal-400 focus-within:bg-white">
+            {{ icon("Search", "h-4 w-4 text-slate-400") }}
+            <input class="w-56 bg-transparent text-sm outline-none" name="q" value="{{ q }}" placeholder="Search name, email or phone" aria-label="Search students">
+          </label>
+        </form>
+      </div>
+      <ul class="divide-y divide-slate-100">
+        {% for u in users %}
+          {% set st = triage(u) %}
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 hover:bg-slate-50/70">
+            {{ avatar(u) }}
+            <a href="/admin/students/{{ u.id }}" class="min-w-[12rem] flex-1">
+              <p class="break-all font-semibold text-slate-900 hover:text-teal-700">{{ u.label }}{% if u.role.value == "admin" %} <span class="ml-1 rounded bg-slate-900 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">Admin</span>{% endif %}</p>
+              {% if u.name %}<p class="break-all text-xs text-slate-500">{{ u.email or "" }}{{ " · " if u.email and u.phone }}{{ u.phone or "" }}</p>{% endif %}
+            </a>
+            <div class="flex flex-wrap gap-1 text-[11px] font-semibold">
+              {% if u.tekurious_user_id %}<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-800 ring-1 ring-emerald-200">Phone</span>{% endif %}
+              {% if u.google_sub %}<span class="rounded-full bg-sky-50 px-2 py-0.5 text-sky-800 ring-1 ring-sky-200">Google</span>{% endif %}
+              {% if u.password_hash.startswith("scrypt$") %}<span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 ring-1 ring-slate-200">Password</span>{% endif %}
+              {% if u.is_minor %}<span class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-900 ring-1 ring-amber-200">Under 18 · {{ u.guardian_consent_status }}</span>{% endif %}
+            </div>
+            <div class="w-40 text-xs text-slate-500"><p>Joined {{ u.created_at|ist_short }}</p><p>{{ u.login_count or 0 }} sign-ins</p></div>
+            <span class="rounded-full px-2.5 py-1 text-xs font-bold ring-1 {{ CHIP[st[1]] }}">{{ st[0] }}</span>
+            <a class="btn-secondary !px-3 !py-1.5 text-xs" href="/admin/students/{{ u.id }}">Open file</a>
+          </li>
+        {% else %}<li class="px-5 py-6 text-sm text-slate-500">{{ "No students match that search." if q else "No students yet." }}</li>{% endfor %}
+      </ul>
+      <p class="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">Newest 300 shown. Times are Indian Standard Time.</p>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="h2 mb-1">Sign-in log</h2>
+      <p class="muted mb-3 text-xs">Latest 100. Network addresses are shortened on purpose; entries older than {{ settings.login_history_days }} days are deleted automatically.</p>
+      <div class="overflow-x-auto"><table class="w-full min-w-[720px] text-left text-sm">
+        <thead class="text-xs uppercase tracking-wide text-slate-500"><tr><th class="py-2">When</th><th>Who</th><th>How</th><th>Network</th><th>Browser</th></tr></thead>
+        <tbody>{% for e, email, name, phone in events %}
+          <tr class="border-t border-slate-100 align-top">
+            <td class="whitespace-nowrap py-2">{{ e.at|ist_long }}</td>
+            <td class="break-all"><a class="font-medium hover:text-teal-700" href="/admin/students/{{ e.user_id }}">{{ name or email or phone }}</a>{% if name %}<span class="block text-xs text-slate-500">{{ email or phone }}</span>{% endif %}</td>
+            <td>{{ {"google": "Google", "password": "Password", "phone": "Phone code", "signup": "New sign-up", "admin": "Admin login"}.get(e.method, e.method) }}</td>
+            <td class="font-mono text-xs">{{ e.ip_prefix or "—" }}</td>
+            <td class="max-w-xs truncate text-xs text-slate-600" title="{{ e.user_agent or '' }}">{{ e.user_agent or "—" }}</td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="py-3 text-slate-500">No sign-ins recorded yet.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
 
   {% elif tab == "imports" %}
     <div class="grid gap-4 md:grid-cols-2">
@@ -247,5 +384,8 @@
       {% endif %}
     </section>
   {% endif %}
+      {% endblock %}
+    </main>
+  </div>
 </div>
 {% endblock %}

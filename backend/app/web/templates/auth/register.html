@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% from "_ui.html" import error_box %}
+{% from "_google.html" import google_button %}
 {% block title %}Create your account · NEET Compass{% endblock %}
 {% block content %}
 <div class="mx-auto max-w-md">
   <h1 class="h1 mb-1">Create your account</h1>
   <p class="muted mb-4">We only ask for what we need. You can export or delete your data at any time.</p>
+  {% if settings.google_enabled %}<div class="card mb-4">{{ google_button("/profile") }}<p class="text-center text-xs text-slate-500">Google shares only your name and email with us.</p></div>{% endif %}
   <form method="post" action="/register" class="group card space-y-4">
     <div><label class="label" for="email">Email</label><input class="input" id="email" name="email" type="email" required autocomplete="email" value="{{ form.email or '' }}"></div>
     <div><label class="label" for="password">Password (min. 8 characters)</label><input class="input" id="password" name="password" type="password" minlength="8" required autocomplete="new-password"></div>
@@ -24,8 +26,9 @@
     </div>
     <label class="flex items-start gap-2 text-sm text-slate-700">
       <input type="checkbox" name="privacy" required class="mt-1">
-      <span>I have read the privacy notice: my marks, rank and category are private, used only for my guidance, never
-        shown publicly or sold, and I can delete them any time.</span>
+      <span>I have read the <a class="text-teal-700 underline" href="/privacy" target="_blank">privacy policy</a>: my marks, rank and category are private, used only for my guidance, never
+        shown publicly or sold, and I can delete them any time. My sign-ins (time, browser and a shortened network
+        address) are kept for {{ settings.login_history_days }} days for account security.</span>
     </label>
     {{ error_box(error) }}
     <button class="btn w-full">Create account</button>

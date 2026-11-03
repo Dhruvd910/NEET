@@ -15,7 +15,7 @@ from sqlalchemy import text
 from app.config import get_settings
 from app.db import SessionLocal
 from app.routers import admin, assistant, auth, colleges, counselling, mock_tests, practice, profile
-from app.security import COOKIE_NAME, CSRF_COOKIE, csrf_ok, csrf_token_for, rate_limiter
+from app.security import COOKIE_NAME, CSRF_COOKIE, client_ip, csrf_ok, csrf_token_for, rate_limiter
 from app.web import core as web_core
 from app.web.routers import routers as web_routers
 
@@ -49,20 +49,13 @@ app = FastAPI(
 )
 
 
-def client_ip(request: Request) -> str:
-    if settings.trust_proxy_headers:
-        fwd = request.headers.get("x-forwarded-for")
-        if fwd:
-            return fwd.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
-
-
 @app.middleware("http")
 async def security_and_limits(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/auth/login") or path.startswith("/api/auth/register"):
         bucket, limit = "auth", settings.rate_limit_auth
-    elif path.startswith("/api/auth/guardian-consent"):
+    elif path.startswith("/api/auth/guardian-consent") or (
+            path.startswith(("/login", "/register", "/auth/", "/admin/login")) and request.method == "POST"):
         bucket, limit = "auth", settings.rate_limit_auth
     elif path.startswith("/api/assistant/messages"):
         bucket, limit = "assistant", settings.rate_limit_assistant
@@ -72,7 +65,10 @@ async def security_and_limits(request: Request, call_next):
         return JSONResponse({"detail": "Too many requests — please wait a minute and try again."}, status_code=429)
     # Login/register start a new session, so a stale cookie must not block them. Guardian consent is protected
     # by its single-use emailed token instead (the guardian is usually not signed in).
-    csrf_exempt = path in ("/api/auth/login", "/api/auth/register", "/login", "/register", "/guardian-consent")
+    # The phone sign-in steps are protected by their own signed, short-lived cookie (no session exists yet).
+    csrf_exempt = path in ("/api/auth/login", "/api/auth/register", "/login", "/register", "/register/google",
+                           "/guardian-consent", "/login/phone", "/login/phone/signup", "/login/phone/resend",
+                           "/login/phone/verify", "/admin/login")
     if not csrf_exempt and not csrf_ok(request):
         msg = "Security check failed (missing or invalid CSRF token). Reload the page and try again."
         if path.startswith("/api/"):
@@ -146,7 +142,8 @@ for r in web_routers:
 
 @app.exception_handler(web_core.LoginRequired)
 async def login_required(request: Request, exc: web_core.LoginRequired):
-    target = f"/login?next={quote(exc.next_url)}"
+    # Admin pages send people to the admin sign-in; everything else to the student sign-in.
+    target = "/admin/login" if exc.next_url.startswith("/admin") else f"/login?next={quote(exc.next_url)}"
     if request.headers.get("hx-request") == "true":
         return Response(status_code=204, headers={"HX-Redirect": target})
     return RedirectResponse(target, status_code=303)
@@ -160,7 +157,10 @@ async def guardian_pending(request: Request, _exc):
 
 @app.exception_handler(web_core.AdminRequired)
 async def admin_required(request: Request, _exc):
-    return HTMLResponse("Administrator access required.", status_code=403)
+    # Signed in, but not as an admin: offer the admin sign-in rather than a bare error.
+    if request.headers.get("hx-request") == "true":
+        return Response(status_code=204, headers={"HX-Redirect": "/admin/login"})
+    return RedirectResponse("/admin/login", status_code=303)
 
 
 @app.get("/api/health")

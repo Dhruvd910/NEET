@@ -19,7 +19,7 @@ os.environ.update({
     "DATABASE_URL": f"sqlite:///{(E2E_DIR / 'e2e.db').as_posix()}",
     "STORAGE_DIR": str(E2E_DIR / "storage"),
     "RATE_LIMIT_DEFAULT": "100000", "RATE_LIMIT_AUTH": "100000", "RATE_LIMIT_ASSISTANT": "100000",
-    "ANTHROPIC_API_KEY": "", "OPENROUTER_API_KEY": "", "VOYAGE_API_KEY": "", "REDIS_URL": "", "EMAIL_BACKEND": "console",
+    "ANTHROPIC_API_KEY": "", "OPENROUTER_API_KEY": "", "TEKURIOUS_API_KEY": "", "GOOGLE_CLIENT_ID": "", "VOYAGE_API_KEY": "", "REDIS_URL": "", "EMAIL_BACKEND": "console",
     "PLACES_PROVIDER": "none", "PUBLIC_APP_URL": f"http://127.0.0.1:{PORT}",
 })
 sys.path.insert(0, str(BACKEND))

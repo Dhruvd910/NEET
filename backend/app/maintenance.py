@@ -8,7 +8,8 @@
     python -m app.maintenance locate-colleges      # map location + website from Wikidata / OpenStreetMap
     python -m app.maintenance check-websites       # drop websites that do not answer
     python -m app.maintenance refresh-nearby-all   # surroundings from OpenStreetMap (slow; resumable)
-    python -m app.maintenance create-admin --email you@example.com
+    python -m app.maintenance create-admin --email you@example.com   # new admin with a password
+    python -m app.maintenance make-admin --email you@gmail.com       # make an existing (e.g. Google) account admin
 """
 import argparse
 import json
@@ -40,6 +41,17 @@ def purge_unconsented(db: Session, now: datetime | None = None) -> int:
     db.commit()
     log.info("purge-unconsented: removed %d account(s)", removed)
     return removed
+
+
+def purge_login_history(db: Session, now: datetime | None = None) -> int:
+    """Sign-in history is kept for LOGIN_HISTORY_DAYS only (stated in the sign-up notice)."""
+    from sqlalchemy import delete
+
+    from app.models import LoginEvent
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=get_settings().login_history_days)
+    n = db.execute(delete(LoginEvent).where(LoginEvent.at < cutoff)).rowcount
+    db.commit()
+    return n
 
 
 EXPORT_FIELDS = ("subject", "topic", "difficulty", "stem", "options", "correct_index", "explanation", "review_status",
@@ -86,14 +98,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=["purge-unconsented", "grow-question-bank", "export-questions", "import-questions",
                                         "import-colleges", "locate-colleges", "check-websites", "refresh-nearby-all",
-                                        "create-admin"])
+                                        "create-admin", "make-admin"])
     parser.add_argument("--per-section", type=int, default=100)
     parser.add_argument("--file", default="questions.json")
     parser.add_argument("--offline", action="store_true", help="import-colleges: use the saved NMC snapshot")
     parser.add_argument("--limit", type=int, default=None, help="locate-colleges / refresh-nearby-all: at most N colleges")
     parser.add_argument("--email", help="create-admin: the admin's email (you are asked for the password)")
     args = parser.parse_args()
-    if args.job in ("import-colleges", "locate-colleges", "check-websites", "refresh-nearby-all", "create-admin"):
+    if args.job in ("import-colleges", "locate-colleges", "check-websites", "refresh-nearby-all", "create-admin",
+                    "make-admin"):
         return catalogue_job(args)
     if args.job == "grow-question-bank":
         from sqlalchemy import func
@@ -111,7 +124,7 @@ def main():
         return
     with SessionLocal() as db:
         if args.job == "purge-unconsented":
-            print(f"Removed {purge_unconsented(db)} account(s).")
+            print(f"Removed {purge_unconsented(db)} account(s) and {purge_login_history(db)} old sign-in record(s).")
         elif args.job == "export-questions":
             print(f"Exported {export_questions(db, args.file)} question(s) to {args.file}.")
         elif args.job == "import-questions":
@@ -142,6 +155,8 @@ def catalogue_job(args):
             print(f"Nearby places: {refresh_nearby_all(db, args.limit)}")
         elif args.job == "create-admin":
             print(create_admin(db, args.email))
+        elif args.job == "make-admin":
+            print(make_admin(db, args.email))
 
 
 def refresh_nearby_all(db, limit=None) -> dict:
@@ -189,6 +204,19 @@ def create_admin(db, email: str | None) -> str:
         user.password_hash, user.role = hash_password(password), Role.admin
     db.commit()
     return f"{email} is now an admin."
+
+
+def make_admin(db, email: str | None) -> str:
+    """Makes an existing account (for example one that signs in with Google) an admin."""
+    from app.models import Role, User
+    if not email:
+        raise SystemExit("Give the account's email: make-admin --email you@example.com")
+    user = db.scalar(select(User).where(User.email == email.strip().lower()))
+    if user is None:
+        raise SystemExit(f"No account with {email}. Sign up on the site first, then run this again.")
+    user.role = Role.admin
+    db.commit()
+    return f"{user.email} is now an admin."
 
 
 if __name__ == "__main__":

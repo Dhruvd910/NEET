@@ -10,7 +10,7 @@
 
   <form method="post" action="/profile" hx-post="/profile" hx-target="#profile-page" hx-select="#profile-page" hx-swap="outerHTML" class="card grid gap-4 sm:grid-cols-2">
     <h2 class="h2 sm:col-span-2">About you</h2>
-    <div><label class="label" for="display_name">Display name</label><input id="display_name" name="display_name" class="input" value="{{ p.display_name or '' }}"></div>
+    <div><label class="label" for="display_name">Display name</label><input id="display_name" name="display_name" class="input" value="{{ p.display_name or me.name or '' }}"></div>
     <div><label class="label" for="current_class">Current stage</label>
       <select id="current_class" name="current_class" class="input">
         <option value="">Choose…</option>

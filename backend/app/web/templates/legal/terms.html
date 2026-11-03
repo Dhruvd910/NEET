@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_ui.html" import page_header, notice %}
+{% block title %}Terms of use · NEET Compass{% endblock %}
+{% macro h(t) %}<h2 class="h2 mt-8 mb-2">{{ t }}</h2>{% endmacro %}
+{% block content %}
+<article class="mx-auto max-w-3xl space-y-3 text-[15px] leading-relaxed text-slate-700">
+  {% call page_header("Terms of use", "Clipboard", "The basics") %}Last updated {{ updated }}{% endcall %}
+  {% call notice("warn") %}NEET Compass gives guidance, not guarantees. Always confirm dates, rules, cutoffs and fees
+    with NTA, MCC, NMC and your state counselling authority before you act.{% endcall %}
+
+  {{ h("The service") }}
+  <p>NEET Compass is a free, non-commercial website that helps NEET-UG students explore medical colleges, compare past
+    cutoffs, practise in the NEET format and plan their studies. We may change or pause features at any time.</p>
+
+  {{ h("Information is guidance only") }}
+  <ul class="list-disc space-y-1.5 pl-6">
+    <li>College details come from official sources such as the National Medical Commission and are labelled with
+      their source and date. They can be out of date or contain errors.</li>
+    <li>"Historical fit" labels compare your rank with past closing ranks. Past cutoffs do not predict this year's
+      results, and no label is a promise of a seat.</li>
+    <li>Practice questions are written and checked with AI and are not yet reviewed by subject experts. Practice
+      scores do not predict your NEET score.</li>
+    <li>The AI assistant can make mistakes. It is not legal, medical or financial advice.</li>
+    <li>We never submit anything to counselling portals for you. Draft preference lists are for your planning only.</li>
+  </ul>
+
+  {{ h("Your account") }}
+  <ul class="list-disc space-y-1.5 pl-6">
+    <li>Give true information, and keep your sign-in (email, phone or Google) to yourself.</li>
+    <li>Students under 18 need a parent or guardian's consent before we store their personal details.</li>
+    <li>You can delete your account at any time from your profile.</li>
+  </ul>
+
+  {{ h("Fair use") }}
+  <ul class="list-disc space-y-1.5 pl-6">
+    <li>Don't misuse the service: no attempts to break in, overload it, scrape it in bulk or access other people's data.</li>
+    <li>College reviews must be your own honest experience. No abuse, personal details of others or false claims;
+      we moderate reviews and may remove them.</li>
+  </ul>
+
+  {{ h("Responsibility") }}
+  <p>The service is provided "as is". To the extent the law allows, we are not responsible for decisions you make
+    based on it, or for losses caused by errors, outages or third-party services. Nothing here limits rights you
+    have under Indian law.</p>
+
+  {{ h("Privacy") }}
+  <p>How we handle your data is explained in our <a class="text-teal-700 underline" href="/privacy">privacy policy</a>.</p>
+
+  {{ h("Changes and contact") }}
+  <p>We may update these terms; the date above shows the latest version.
+    {% if contact %}Questions: <a class="text-teal-700 underline" href="mailto:{{ contact }}">{{ contact }}</a>.{% endif %}</p>
+</article>
+{% endblock %}
