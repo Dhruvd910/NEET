@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>Signing you in · NEET Compass</title>
+  <style>body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, Arial, sans-serif; color: #475569; }</style>
+</head>
+<body>
+  <p id="msg">Signing you in…</p>
+  <script>
+    // Google returns here (a fixed address it can trust); pass the sign-in result on to the site's current address,
+    // which finishes the sign-in and checks it. Only NEET Compass's own tunnel addresses are accepted.
+    fetch("current.json?t=" + Date.now(), { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        const url = new URL(d.url);
+        if (!/\.(trycloudflare\.com|ts\.net)$/.test(url.hostname)) throw new Error("unexpected address");
+        location.replace(url.origin + "/auth/google/callback" + location.search);
+      })
+      .catch(() => { document.getElementById("msg").textContent = "The site is offline right now. Please try again later."; });
+  </script>
+</body>
+</html>
