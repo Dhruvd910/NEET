@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     # Google sign-in (OAuth client from Google Cloud Console → APIs & Services → Credentials).
     google_client_id: str = ""
     google_client_secret: str = ""
+    # Where Google sends people back. Empty: <PUBLIC_APP_URL>/auth/google/callback. Set it when the site's address
+    # changes (a Cloudflare quick tunnel), to a fixed page that forwards to the current address.
+    google_redirect_uri: str = ""
     # Sign-in history shown to admins; older rows are deleted by the daily purge job.
     login_history_days: int = 180
     guardian_link_hours: int = 72

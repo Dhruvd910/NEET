@@ -7,12 +7,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}NEET Compass — NEET-UG guidance{% endblock %}</title>
   <meta name="description" content="Source-backed NEET-UG guidance: college matches from historical cutoffs, costs, real-exam practice tests, study plans and counselling help.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  {# Fonts and scripts are served from this site: no extra lookups to other servers on slow networks. #}
+  <link rel="preload" href="/static/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
   <link rel="icon" href="/static/mascot/avatar-circle.png">
-  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+  <script src="/static/vendor/htmx-2.0.4.min.js?v=2.0.4" defer></script>
   {# Swap 422 responses too, so form validation errors render in place. #}
   <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"422","swap":true},{"code":"[45]..","swap":false,"error":true}]}'>
   {% block head %}{% endblock %}

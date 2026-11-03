@@ -20,7 +20,7 @@ import httpx
 
 from app.config import get_settings
 
-COUNTRIES_TTL = 3600
+COUNTRIES_TTL = 24 * 3600  # the list rarely changes; a stale copy is fine
 TEST_CODE = "123456"  # the code the service accepts in its test ("stub") mode
 _countries: tuple[float, list[dict]] = (0.0, [])
 
@@ -31,13 +31,13 @@ class PhoneAuthError(Exception):
         self.code, self.retry_after = code, retry_after
 
 
-def _call(method: str, path: str, *, json: dict | None = None, token: str | None = None) -> dict:
+def _call(method: str, path: str, *, json: dict | None = None, token: str | None = None, timeout: float = 20) -> dict:
     s = get_settings()
     headers = {"x-api-key": s.tekurious_api_key}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        r = httpx.request(method, f"{s.tekurious_base_url.rstrip('/')}{path}", json=json, headers=headers, timeout=20)
+        r = httpx.request(method, f"{s.tekurious_base_url.rstrip('/')}{path}", json=json, headers=headers, timeout=timeout)
     except httpx.HTTPError as e:
         raise PhoneAuthError("The phone sign-in service is not reachable right now. Please try again shortly.") from e
     try:
@@ -61,7 +61,7 @@ def countries() -> list[dict]:
     if items and time.time() - at < COUNTRIES_TTL:
         return items
     try:
-        items = _call("GET", "/v1/countries/allowed").get("items") or []
+        items = _call("GET", "/v1/countries/allowed", timeout=4).get("items") or []  # never hold up the sign-in page
     except PhoneAuthError:
         return items
     _countries = (time.time(), items)

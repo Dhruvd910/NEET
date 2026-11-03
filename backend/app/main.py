@@ -111,6 +111,11 @@ async def security_headers(request: Request, call_next):
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
     if settings.cookie_secure:
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    # Static files: browsers keep them, so later pages don't re-ask the server (each trip is slow through a tunnel).
+    # Files linked with ?v=<version> change address whenever they change, so they can be kept for a year.
+    if request.url.path.startswith("/static/") and response.status_code in (200, 304):
+        response.headers["Cache-Control"] = ("public, max-age=31536000, immutable" if "v=" in request.url.query
+                                             else "public, max-age=86400")
     return response
 
 
@@ -135,7 +140,9 @@ for r in (auth.router, profile.router, mock_tests.router, colleges.router, couns
 
 # ---------------------------------------------------------------- website (Python: Jinja2 templates + HTMX)
 app.mount("/static", StaticFiles(directory=web_core.WEB_DIR / "static"), name="static")
-web_core.templates.env.globals["asset_version"] = int((web_core.WEB_DIR / "static/app.css").stat().st_mtime)
+# Changes whenever any stylesheet or script changes, so browsers can keep these files for a year (see security_headers).
+web_core.templates.env.globals["asset_version"] = int(max(
+    f.stat().st_mtime for f in (web_core.WEB_DIR / "static").rglob("*") if f.suffix in (".css", ".js")))
 for r in web_routers:
     app.include_router(r)
 
@@ -161,6 +168,16 @@ async def admin_required(request: Request, _exc):
     if request.headers.get("hx-request") == "true":
         return Response(status_code=204, headers={"HX-Redirect": "/admin/login"})
     return RedirectResponse("/admin/login", status_code=303)
+
+
+@app.on_event("startup")
+def warm_caches() -> None:
+    """Fetch the phone-country list in the background, so the first visitor to the sign-in page doesn't wait for it."""
+    if settings.phone_enabled:
+        import threading
+
+        from app.services import phone_auth
+        threading.Thread(target=phone_auth.countries, daemon=True).start()
 
 
 @app.get("/api/health")

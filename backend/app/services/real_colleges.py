@@ -425,6 +425,123 @@ def enrich_locations(db: Session, limit: int | None = None, log=print) -> dict:
     return {"checked": len(todo), "located": found}
 
 
+APPROX_PREFIX = "Approximate"
+# NMC's city field is free text; these are addresses, labels or abbreviations rather than a town's name.
+BAD_CITY = re.compile(r"\d|\.|:|�|^\W*\w{0,3}\W*$|\b(pin|code|road|rd|post|po|ps|nh|street|bazar|gate|near|dean|"
+                      r"college|institutes?|chhattisgarh)\b", re.I)
+
+
+def _name_town(c: College) -> str | None:
+    """"Government Medical College, Warangal" → "Warangal"."""
+    town = c.name.rsplit(",", 1)[1].strip() if "," in c.name else ""
+    ok = town and not BAD_CITY.search(town) and len(town) <= 30 and state_name(town) != c.state         and town.lower() != (c.state or "").lower()  # "…, Rajasthan" names a state, not a town
+    return town if ok else None
+
+
+def fix_cities(db: Session, log=print) -> int:
+    """Replace city values that are really address fragments ("Pin Code", "Jail Road") with the town in the
+    college's name, or else the town of its PIN code (OpenStreetMap)."""
+    cache, path = _cache("nominatim_cache.json")
+    fixed = 0
+    for c in db.scalars(select(College).where(College.is_demo.is_(False))):
+        if c.city and not BAD_CITY.search(c.city):
+            continue
+        town = _name_town(c)
+        if not town and (found := _area_centre(c, cache)):
+            addr = found[0].get("address") or {}
+            town = addr.get("city") or addr.get("town") or addr.get("state_district") or addr.get("county")
+            town = town.removesuffix(" District").strip() if town else None
+        if town:
+            c.city = town
+            fixed += 1
+            db.commit()
+    path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    log(f"Cities fixed: {fixed}")
+    return fixed
+
+
+def _pin(c: College) -> str | None:
+    if c.pincode and re.fullmatch(r"\d{6}", c.pincode):
+        return c.pincode
+    m = re.search(r"(?<!\d)(\d{3})\s?(\d{3})(?!\d)", c.address or "")
+    return m.group(1) + m.group(2) if m else None
+
+
+def _area_centre(c: College, cache: dict) -> tuple[dict, str] | None:
+    """The centre of the college's PIN-code area, else of its town (the last part of its name), from OpenStreetMap."""
+    lookups = []
+    if pin := _pin(c):
+        lookups.append((f"PIN {pin}", {"postalcode": pin, "country": "India"}))
+    if town := _name_town(c):
+        lookups.append((town, {"city": town, "state": c.state, "country": "India"}))
+    for label, q in lookups:
+        key = "structured:" + json.dumps(q, sort_keys=True)
+        if key not in cache:
+            params = {**q, "format": "jsonv2", "addressdetails": 1, "limit": 3, "countrycodes": "in"}
+            try:
+                cache[key] = _http_json(f"{NOMINATIM}?{urllib.parse.urlencode(params)}", timeout=30)
+            except Exception:  # noqa: BLE001 — a failed lookup just leaves the college without a location
+                cache[key] = []
+            time.sleep(1.1)  # Nominatim usage policy: at most one request per second
+        for hit in cache[key]:
+            st = (hit.get("address") or {}).get("state", "")
+            if st and state_name(st) == c.state:
+                return hit, label
+    return None
+
+
+def approximate_locations(db: Session, limit: int | None = None, log=print) -> dict:
+    """Second pass for colleges the strict matchers left without a location. First a looser name match among the
+    OpenStreetMap medical institutions near the college's PIN-code area (or town); failing that, the centre of that
+    area, clearly labelled approximate, so the map and surroundings are roughly right instead of missing."""
+    cache, path = _cache("nominatim_cache.json")
+    osm = json.loads((DATA / OSM_FILE).read_text(encoding="utf-8")) if (DATA / OSM_FILE).exists() else []
+    places = []
+    for e in osm:
+        t = e.get("tags", {})
+        lat, lon = (e.get("lat"), e.get("lon")) if "lat" in e else ((e.get("center") or {}).get("lat"), (e.get("center") or {}).get("lon"))
+        if lat is not None and t.get("name"):
+            places.append({"lat": lat, "lon": lon, "tags": t, "words": _tokens(t.get("name"), t.get("name:en"),
+                           t.get("official_name"), t.get("alt_name"), t.get("short_name"))})
+    todo = db.scalars(select(College).where(College.is_demo.is_(False), College.latitude.is_(None))).all()[:limit]
+    counts = {"checked": len(todo), "matched_nearby": 0, "approximate": 0, "not_found": 0}
+    for i, c in enumerate(todo, 1):
+        found = _area_centre(c, cache)
+        if not found:
+            counts["not_found"] += 1
+        else:
+            hit, label = found
+            lat, lon = float(hit["lat"]), float(hit["lon"])
+            own = own_words([a.alias for a in c.aliases] or [c.name])
+            near = []
+            for p in places:
+                if haversine_km(lat, lon, p["lat"], p["lon"]) > 15:
+                    continue
+                share = len(own & p["words"]) / len(own) if own else 0
+                if share >= 0.5:
+                    near.append((share, p))
+            near.sort(key=lambda x: x[0], reverse=True)
+            if near and (len(near) == 1 or near[0][0] > near[1][0]):
+                p = near[0][1]
+                c.latitude, c.longitude = p["lat"], p["lon"]
+                c.location_source = "OpenStreetMap (matched by name near the address; check on the map)"
+                site = p["tags"].get("website") or p["tags"].get("contact:website")
+                if site and not c.website:
+                    c.website, c.website_source = (site if site.startswith("http") else "https://" + site), "OpenStreetMap"
+                counts["matched_nearby"] += 1
+            else:
+                c.latitude, c.longitude = lat, lon
+                c.location_source = f"{APPROX_PREFIX}: centre of the {label} area (OpenStreetMap)"
+                counts["approximate"] += 1
+        db.commit()  # save each college at once: never hold the write lock while waiting on the network
+        if i % 20 == 0:
+            path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+            log(f"  {i}/{len(todo)}: {counts}")
+    path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    counts["cities_fixed"] = fix_cities(db, log)
+    return counts
+
+
 WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 
 

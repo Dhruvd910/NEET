@@ -19,11 +19,13 @@
   {% endcall %}
   {% if o.is_demo %}{% call notice("warn") %}<strong>DEMO college.</strong> This is a fictional record used to develop the platform. None of its figures are real.{% endcall %}{% endif %}
 
+  {# The tab bar is swapped together with the content, so the highlighted tab always matches what is shown. #}
+  <div id="college-tabs" class="space-y-5">
   <div role="tablist" class="flex gap-1 overflow-x-auto border-b border-slate-200">
     {% for key, label in TABS %}
       {# "Around campus" loads the map library, so it opens as a full page; other tabs swap in place. #}
       <a role="tab" aria-selected="{{ 'true' if tab == key else 'false' }}" href="/colleges/{{ o.id }}?tab={{ key }}"
-         {% if key != "around" %}hx-get="/colleges/{{ o.id }}?tab={{ key }}" hx-target="#tab-region" hx-select="#tab-region" hx-swap="outerHTML" hx-push-url="true"{% endif %}
+         {% if key != "around" %}hx-get="/colleges/{{ o.id }}?tab={{ key }}" hx-target="#college-tabs" hx-select="#college-tabs" hx-swap="outerHTML" hx-push-url="true"{% endif %}
          class="whitespace-nowrap border-b-2 px-3 py-2 text-sm {{ 'border-teal-700 font-medium text-teal-800' if tab == key else 'border-transparent text-slate-600 hover:text-slate-900' }}">{{ label }}</a>
     {% endfor %}
   </div>
@@ -56,7 +58,8 @@
           {{ source(c) }}
         </div>
       {% endfor %}{% endfor %}
-      {{ source(o) }}
+      {# The college record usually comes from the same NMC list as its courses; show that source once. #}
+      {% if o.source_name not in o.courses.values()|sum(start=[])|map(attribute="source_name")|list %}{{ source(o) }}{% endif %}
     </section>
 
   {% elif tab == "admission" %}
@@ -174,6 +177,9 @@
     <section class="space-y-4 text-sm">
       {% call notice() %}Distances are straight-line and walking times are rough estimates. We never claim a place is open, safe or has rooms available right now. Check with the place and with current students.{% endcall %}
       {% if o.latitude is not none and o.longitude is not none %}
+        {% if (o.location_source or "").startswith("Approximate") %}
+          {% call notice("warn") %}<strong>Approximate location.</strong> We could not find this college itself on OpenStreetMap, so the map is centred on its PIN-code area or town, and distances may be off by a few kilometres.{% endcall %}
+        {% endif %}
         <div id="nearby-map" class="h-72 w-full rounded-lg border border-slate-200" role="region" aria-label="Map of places around the college"
              data-lat="{{ o.latitude }}" data-lon="{{ o.longitude }}" data-name="{{ o.name }}" data-tiles="{{ settings.map_tile_url }}" data-attribution="{{ settings.map_attribution }}" data-places='{{ map_places|tojson }}'></div>
       {% else %}
@@ -213,12 +219,13 @@
     </section>
   {% endif %}
   </div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/compare-tray.js" defer></script>
+<script src="/static/js/compare-tray.js?v={{ asset_version }}" defer></script>
 {% if tab == "around" and o.latitude is not none %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
-<script src="/static/js/nearby-map.js" defer></script>
+<script src="/static/js/nearby-map.js?v={{ asset_version }}" defer></script>
 {% endif %}
 {% endblock %}

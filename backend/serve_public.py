@@ -1,7 +1,10 @@
 """Host the site from this computer so anyone on the internet can use it.
 
-    python serve_public.py              # Tailscale Funnel when this PC is signed in: a fixed address
-    python serve_public.py --cloudflare # Cloudflare quick tunnel: no account, but a new address every start
+    python serve_public.py              # Cloudflare quick tunnel (fast in India); a new address every start
+    python serve_public.py --tailscale  # Tailscale Funnel: a fixed address, but slow or unreachable from India
+
+The Cloudflare address changes on every start, so the launcher publishes it to a fixed link on GitHub Pages
+(https://dhruvd910.github.io/NEET/, the gh-pages branch, checked out in backend/live/pages). Share that link.
 
 - Nothing is opened on your router or firewall: the site listens only on this computer (127.0.0.1) and the
   tunnel (Tailscale Funnel or `cloudflared`) carries visitors' HTTPS traffic to it.
@@ -96,6 +99,42 @@ def tailscale_url() -> str | None:
     return "https://" + status["Self"]["DNSName"].rstrip(".")
 
 
+PAGES = LIVE / "pages"  # git worktree of the gh-pages branch: the fixed link
+FIXED_LINK = "https://dhruvd910.github.io/NEET/"
+
+
+def publish_link(url: str) -> None:
+    """Point the fixed GitHub Pages link at the site's current address. Failures are reported, never fatal."""
+    if not (PAGES / ".git").exists():
+        print("The fixed link is not set up (backend/live/pages is missing); share the address above instead.")
+        return
+    current = PAGES / "current.json"
+    try:
+        if json.loads(current.read_text(encoding="utf-8")).get("url") == url:
+            return
+    except (OSError, ValueError):
+        pass
+    current.write_text(json.dumps({"url": url, "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n",
+                       encoding="utf-8")
+    git = ["git", "-C", str(PAGES), "-c", "user.name=Dhruvd910", "-c", "user.email=dhruvd910@gmail.com"]
+    try:
+        subprocess.run(git + ["add", "current.json"], check=True, capture_output=True, timeout=30)
+        subprocess.run(git + ["commit", "-m", "Point the link at the current address"], check=True,
+                       capture_output=True, timeout=30)
+        subprocess.run(git + ["push", "origin", "gh-pages"], check=True, capture_output=True, timeout=120)
+        print(f"Fixed link updated: {FIXED_LINK} (GitHub takes about a minute to publish it).")
+    except (subprocess.SubprocessError, OSError) as e:
+        print(f"Could not update the fixed link ({e}); share the address above instead.")
+
+
+def public_ok(url: str) -> bool:
+    try:
+        urllib.request.urlopen(f"{url}/api/ready", timeout=20)
+        return True
+    except OSError:
+        return False
+
+
 def wait_until_ready(url: str, proc: subprocess.Popen) -> None:
     for _ in range(180):
         if proc.poll() is not None:
@@ -111,7 +150,7 @@ def wait_until_ready(url: str, proc: subprocess.Popen) -> None:
 def main() -> None:
     LIVE.mkdir(exist_ok=True)
     s = live_secrets()
-    url = None if "--cloudflare" in sys.argv else tailscale_url()
+    url = tailscale_url() if "--tailscale" in sys.argv else None
     tunnel = None
     if url is None:
         tunnel, url = start_tunnel()
@@ -136,8 +175,21 @@ def main() -> None:
     try:
         wait_until_ready(url, site)
         (LIVE / "public_url.txt").write_text(url + "\n", encoding="utf-8")
-        print("\n" + "=" * 64 + f"\n  NEET Compass is live at:  {url}\n  Share this link. Keep this window open; Ctrl+C stops it.\n" + "=" * 64 + "\n")
-        site.wait()
+        print("\n" + "=" * 64 + f"\n  NEET Compass is live at:  {url}\n  Share the fixed link:     {FIXED_LINK}\n"
+              "  Keep this window open; Ctrl+C stops it.\n" + "=" * 64 + "\n")
+        publish_link(url)
+        # Keep watching: if the tunnel drops or the public address stops answering, stop, so start_site.cmd
+        # restarts everything with a fresh tunnel (and the fixed link is updated again).
+        misses = 0
+        while site.poll() is None:
+            time.sleep(60)
+            if tunnel is not None and tunnel.poll() is not None:
+                print("The Cloudflare tunnel stopped; restarting.")
+                break
+            misses = 0 if public_ok(url) else misses + 1
+            if misses >= 3:
+                print("The public address stopped answering; restarting with a new tunnel.")
+                break
     except KeyboardInterrupt:
         print("\nStopping…")
     finally:

@@ -32,7 +32,8 @@ class GoogleAuthError(Exception):
 
 
 def redirect_uri() -> str:
-    return get_settings().public_app_url.rstrip("/") + "/auth/google/callback"
+    s = get_settings()
+    return s.google_redirect_uri or s.public_app_url.rstrip("/") + "/auth/google/callback"
 
 
 def sign(payload: dict, minutes: int) -> str:

@@ -6,6 +6,7 @@
     python -m app.maintenance import-questions --file questions.json
     python -m app.maintenance import-colleges      # official NMC list of MBBS colleges (--offline: saved snapshot)
     python -m app.maintenance locate-colleges      # map location + website from Wikidata / OpenStreetMap
+    python -m app.maintenance approximate-locations  # PIN-code area for colleges still without a location
     python -m app.maintenance check-websites       # drop websites that do not answer
     python -m app.maintenance refresh-nearby-all   # surroundings from OpenStreetMap (slow; resumable)
     python -m app.maintenance create-admin --email you@example.com   # new admin with a password
@@ -97,7 +98,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=["purge-unconsented", "grow-question-bank", "export-questions", "import-questions",
-                                        "import-colleges", "locate-colleges", "check-websites", "refresh-nearby-all",
+                                        "import-colleges", "locate-colleges", "approximate-locations", "check-websites", "refresh-nearby-all",
                                         "create-admin", "make-admin"])
     parser.add_argument("--per-section", type=int, default=100)
     parser.add_argument("--file", default="questions.json")
@@ -105,7 +106,7 @@ def main():
     parser.add_argument("--limit", type=int, default=None, help="locate-colleges / refresh-nearby-all: at most N colleges")
     parser.add_argument("--email", help="create-admin: the admin's email (you are asked for the password)")
     args = parser.parse_args()
-    if args.job in ("import-colleges", "locate-colleges", "check-websites", "refresh-nearby-all", "create-admin",
+    if args.job in ("import-colleges", "locate-colleges", "approximate-locations", "check-websites", "refresh-nearby-all", "create-admin",
                     "make-admin"):
         return catalogue_job(args)
     if args.job == "grow-question-bank":
@@ -149,6 +150,9 @@ def catalogue_job(args):
             except Exception as e:  # noqa: BLE001 — Wikidata is optional; the OpenStreetMap search still runs
                 print(f"Wikidata stopped early ({e}); run again later to continue.", flush=True)
             print(f"OpenStreetMap (search, slow): {rc.enrich_locations(db, args.limit)}", flush=True)
+            print(f"Approximate locations: {rc.approximate_locations(db, args.limit)}", flush=True)
+        elif args.job == "approximate-locations":
+            print(f"Approximate locations: {rc.approximate_locations(db, args.limit)}", flush=True)
         elif args.job == "check-websites":
             print(f"Websites: {rc.verify_websites(db)}")
         elif args.job == "refresh-nearby-all":

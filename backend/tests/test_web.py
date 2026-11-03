@@ -29,6 +29,11 @@ def test_college_detail_tabs(client):
     for tab in ["overview", "admission", "fees", "hostel", "academics", "outcomes", "campus", "around"]:
         assert client.get(f"/colleges/1?tab={tab}").status_code == 200
     assert client.get("/colleges/999999").status_code == 404
+    # Switching tabs swaps the tab bar too, so the highlighted tab follows the content.
+    html = client.get("/colleges/1?tab=fees").text
+    assert 'hx-target="#college-tabs"' in html
+    bar = html.split('id="college-tabs"', 1)[1].split('id="tab-region"', 1)[0]
+    assert 'aria-selected="true" href="/colleges/1?tab=fees"' in bar
 
 
 def test_predictor_form_and_validation(client):
@@ -180,3 +185,14 @@ def test_admin_console_and_student_file(admin, db):
 def test_student_cannot_open_student_files(student):
     r = student.get("/admin/students/1", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/admin/login"
+
+
+def test_static_files_are_cacheable_and_pages_need_no_other_servers(client):
+    page = client.get("/").text
+    css = re.search(r'href="(/static/app\.css\?v=\d+)"', page).group(1)
+    assert client.get(css).headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert client.get("/static/mascot/idle-still.png").headers["cache-control"] == "public, max-age=86400"
+    assert "cache-control" not in client.get("/login").headers  # pages themselves are always fresh
+    assert "googleapis" not in page and "jsdelivr" not in page
+    assert client.get("/static/vendor/htmx-2.0.4.min.js?v=2.0.4").status_code == 200
+    assert client.get("/static/fonts/plus-jakarta-sans-latin.woff2").status_code == 200

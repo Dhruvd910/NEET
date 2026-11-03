@@ -15,7 +15,7 @@ class FakeTekurious:
         self.known = {"+919800000001": {"id": "tk-existing", "displayName": "Existing Student"}}
         self.sent, self.calls = {}, []
 
-    def __call__(self, method, path, json=None, token=None):
+    def __call__(self, method, path, json=None, token=None, timeout=20):
         self.calls.append((method, path, json))
         if path == "/v1/countries/allowed":
             return {"items": [{"code": "IN", "name": "India", "dialCode": "+91", "flag": "IN"}]}
