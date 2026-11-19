@@ -105,12 +105,17 @@ def fmt_date(v) -> str:
     return str(v)
 
 
+def when(v: datetime) -> str:
+    """3 Nov 2026, 4:05 pm"""
+    return f"{v.day} {v:%b %Y}, {v.hour % 12 or 12}:{v:%M} {'pm' if v.hour >= 12 else 'am'}"
+
+
 def clock(seconds: int) -> str:
     h, m, s = seconds // 3600, (seconds % 3600) // 60, seconds % 60
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
-templates.env.filters.update(inr=inr, num=num, date=fmt_date, clock=clock, urlquote=quote)
+templates.env.filters.update(inr=inr, num=num, date=fmt_date, when=when, clock=clock, urlquote=quote)
 templates.env.globals.update(STATUS_STYLE=STATUS_STYLE, STATUS_LABEL=STATUS_LABEL, FIT_STYLE=FIT_STYLE,
                              SUBJECT_STYLE=SUBJECT_STYLE, NAV_LINKS=NAV_LINKS, NAV_MORE=NAV_MORE,
                              STATES=STATES, CATEGORIES=CATEGORIES, SECTIONS=["Physics", "Chemistry", "Botany", "Zoology"],

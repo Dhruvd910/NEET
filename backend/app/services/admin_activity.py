@@ -139,8 +139,9 @@ def student_file(db: Session, user: User) -> dict:
     active_days = set(_ist(e.at).date() for e in db.scalars(select(LoginEvent).where(
         LoginEvent.user_id == user.id, LoginEvent.at >= since)))
     active_days |= set(_ist(a.started_at).date() for a in attempts if _ist(a.started_at) and _ist(a.started_at).date() >= span[0])
+    from app.services import learning  # learning imports this module
     return {
-        "user": user, "triage": triage(user),
+        "user": user, "triage": triage(user), "learning": learning.progress(db, user.id),
         "methods": [m for m, on in (("Google", user.google_sub), ("Phone", user.tekurious_user_id),
                                     ("Password", user.password_hash.startswith("scrypt$"))) if on],
         "profile": {"Class": {"11": "Class 11", "12": "Class 12", "dropper": "Dropper", "graduated": "Finished class 12"}

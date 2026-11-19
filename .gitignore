@@ -16,3 +16,9 @@ backend/live/
 # lookup caches written by the college data jobs (rebuilt on demand)
 backend/data/sources/*_cache.json
 backend/data/sources/nmc_details.json
+
+# graphify knowledge graph output
+graphify-out/
+
+# source animation (26 MB); the site uses the converted backend/app/web/static/mascot/idle.webp
+mascot/

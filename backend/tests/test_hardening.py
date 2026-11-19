@@ -158,3 +158,17 @@ def test_health_and_readiness(client):
     r = client.get("/api/ready")
     assert r.status_code == 200 and r.json()["database"] == "ok"
     assert r.headers.get("x-request-id")
+
+
+def test_client_ip_ignores_addresses_the_visitor_wrote(monkeypatch):
+    from starlette.requests import Request
+
+    from app.config import get_settings
+    from app.security import client_ip
+    monkeypatch.setattr(get_settings(), "trust_proxy_headers", True)
+    def req(headers):
+        return Request({"type": "http", "headers": [(k.encode(), v.encode()) for k, v in headers.items()],
+                        "client": ("127.0.0.1", 1)})
+    # The visitor sent "1.2.3.4"; the proxy appended the real address last.
+    assert client_ip(req({"x-forwarded-for": "1.2.3.4, 203.0.113.9"})) == "203.0.113.9"
+    assert client_ip(req({"cf-connecting-ip": "198.51.100.7", "x-forwarded-for": "1.2.3.4, 198.51.100.7"})) == "198.51.100.7"

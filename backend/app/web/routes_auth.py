@@ -55,11 +55,17 @@ def login(email: str = Form(...), password: str = Form(...), next: str = Form("/
 
 # ---------------------------------------------------------------- admin sign-in (separate from students)
 
+def _admin_google_url() -> str | None:
+    """Admins whose account is linked to Google can sign in with Google; /admin still checks they are an admin."""
+    return "/auth/google?next=/admin" if get_settings().google_enabled else None
+
+
 @router.get("/admin/login", response_class=HTMLResponse)
 def admin_login_form(p: Page = Depends(page)):
     if p.user is not None and p.user.role.value == "admin":
         return RedirectResponse("/admin", status_code=303)
-    return p.render("auth/admin_login.html")
+    return p.render("admin/login.html", exam="neet", email="", error=None, google_url=_admin_google_url(),
+                    peer_url=get_settings().jee_url.rstrip("/") + "/admin/login")
 
 
 @router.post("/admin/login", response_class=HTMLResponse)
@@ -71,8 +77,9 @@ def admin_login(email: str = Form(...), password: str = Form(...), p: Page = Dep
     from app.security import verify_password
     user = p.db.scalar(select(User).where(User.email == email.strip().lower()))
     if user is None or user.role != Role.admin or not verify_password(password, user.password_hash):
-        return p.render("auth/admin_login.html", status_code=401, email=email,
-                        error="Incorrect email or password, or this account is not an admin.")
+        return p.render("admin/login.html", status_code=401, email=email, exam="neet",
+                        error="Incorrect email or password, or this account is not an admin.", google_url=_admin_google_url(),
+                        peer_url=get_settings().jee_url.rstrip("/") + "/admin/login")
     record_login(p.db, user, "admin", p.request)
     resp = RedirectResponse("/admin", status_code=303)
     auth_api._set_cookie(resp, user)

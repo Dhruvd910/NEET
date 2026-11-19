@@ -1,0 +1,57 @@
+{# Learning progress, subject-wise and overall. Shared by the student dashboard and the admin's student file.
+   `you` switches the wording: "you" for the student, "they" for the admin. #}
+{% macro bar(pct, label) -%}
+<div class="h-2 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="{{ label }}"
+     aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}">
+  <div class="h-full rounded-full bg-teal-600" style="width: {{ pct }}%"></div>
+</div>
+{%- endmacro %}
+
+{% macro eta_text(s, you=True) -%}
+  {%- if s.eta is none -%}
+    {{ "Mark chapters in your study plan to see an estimate." if you else "No recent progress, so no estimate." }}
+  {%- elif s.eta.days == 0 -%}All chapters covered.
+  {%- else -%}About {{ s.eta.days }} day{{ "s" if s.eta.days != 1 }} to cover the rest ({{ s.eta.finish|date }}), at {{ s.pace_h_per_week }} study hours a week.
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro learning_panel(l, you=True) %}
+{% set o = l.overall %}
+<section class="card space-y-4" aria-labelledby="learning-title">
+  <div class="flex flex-wrap items-baseline justify-between gap-2">
+    <h2 id="learning-title" class="h2">Learning progress</h2>
+    <p class="text-xs text-slate-500">Last activity: {{ o.last|when if o.last else "none yet" }}</p>
+  </div>
+  <div class="space-y-1.5">
+    <div class="flex items-baseline justify-between text-sm"><span class="font-semibold">Overall</span>
+      <span>{{ o.percent }}% of the syllabus · {{ o.covered }}/{{ o.chapters }} chapters</span></div>
+    {{ bar(o.percent, "Overall syllabus covered") }}
+    <p class="text-xs text-slate-600">{{ eta_text(o, you) }}{% if o.accuracy is not none %} Test accuracy {{ o.accuracy }}% over {{ o.attempted }} questions.{% endif %}</p>
+  </div>
+  <div class="grid gap-3 sm:grid-cols-2">
+    {% for s in l.subjects %}
+      <div class="rounded-lg border border-slate-200 p-3 text-sm">
+        <div class="flex items-baseline justify-between"><span class="font-semibold">{{ s.name }}</span><span>{{ s.percent }}%</span></div>
+        <div class="mt-1.5">{{ bar(s.percent, s.name ~ " covered") }}</div>
+        <p class="mt-1.5 text-xs text-slate-600">{{ s.covered }}/{{ s.chapters }} chapters ·
+          {{ ("accuracy " ~ s.accuracy ~ "%") if s.accuracy is not none else "no test answers yet" }}</p>
+        <p class="text-xs text-slate-500">{{ ("Last studied " ~ (s.last|when)) if s.last else "Not started" }}</p>
+        <p class="text-xs text-slate-500">{{ eta_text(s, you) }}</p>
+      </div>
+    {% endfor %}
+  </div>
+  <div>
+    <h3 class="text-sm font-semibold">{{ "Where you need work" if you else "Where they need work" }}</h3>
+    {% if o.weak %}
+      <ul class="mt-1 space-y-1 text-sm">
+        {% for w in o.weak %}<li class="flex justify-between gap-3"><span>{{ w.name }}</span>
+          <span class="shrink-0 text-xs text-rose-700">{{ w.accuracy }}% right · {{ w.attempted }} answered</span></li>{% endfor %}
+      </ul>
+      {% if you %}<a class="btn-secondary mt-2" href="/practice?mode=weak#builder">Practise weak chapters</a>{% endif %}
+    {% else %}
+      <p class="muted text-sm">No weak chapters yet. A chapter shows here after 2 or more answers with under 60% right.</p>
+    {% endif %}
+  </div>
+  <p class="text-xs text-slate-500">Progress counts chapters marked "revised" or "mastered" in the study tracker ("learning" counts half), weighted by each chapter's study hours. The estimate uses the pace of the last {{ l.pace_window_days }} days.</p>
+</section>
+{% endmacro %}

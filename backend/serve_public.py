@@ -24,6 +24,7 @@ import os
 import re
 import secrets
 import shutil
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -127,6 +128,33 @@ def publish_link(url: str) -> None:
         print(f"Could not update the fixed link ({e}); share the address above instead.")
 
 
+def daily_housekeeping(env: dict) -> None:
+    """Once a day: a copy of the database (kept 14 days, as the privacy policy says) and the privacy clean-up
+    (unconsented under-18 accounts, old sign-in history). Failures are reported, never fatal."""
+    backups = LIVE / "backups"
+    backups.mkdir(exist_ok=True)
+    target = backups / f"neet-{time.strftime('%Y-%m-%d')}.db"
+    if target.exists():
+        return
+    try:
+        src, dst = sqlite3.connect(LIVE / "neet.db"), sqlite3.connect(target)
+        with dst:
+            src.backup(dst)  # consistent copy even while the site is writing
+        src.close()
+        dst.close()
+        for old in backups.glob("neet-*.db"):
+            if old.stat().st_mtime < time.time() - 14 * 86400:
+                old.unlink()
+        subprocess.run([sys.executable, "-m", "app.maintenance", "purge-unconsented"], cwd=HERE, env=env, timeout=600)
+        # New versions of bank questions with free models; slow (rate-limited), so it runs on its own.
+        with open(LIVE / "variants.log", "a") as log:
+            subprocess.Popen([sys.executable, "-m", "app.maintenance", "make-variants"], cwd=HERE, env=env,
+                             stdout=log, stderr=subprocess.STDOUT)
+        print(f"Backup saved: {target.name}")
+    except (sqlite3.Error, OSError, subprocess.SubprocessError) as e:
+        print(f"Daily backup or clean-up failed ({e}); will try again tomorrow.")
+
+
 def public_ok(url: str) -> bool:
     try:
         urllib.request.urlopen(f"{url}/api/ready", timeout=20)
@@ -182,6 +210,7 @@ def main() -> None:
         # restarts everything with a fresh tunnel (and the fixed link is updated again).
         misses = 0
         while site.poll() is None:
+            daily_housekeeping(env)
             time.sleep(60)
             if tunnel is not None and tunnel.poll() is not None:
                 print("The Cloudflare tunnel stopped; restarting.")

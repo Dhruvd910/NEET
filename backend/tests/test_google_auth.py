@@ -78,12 +78,17 @@ def test_new_google_user_answers_age_question_then_is_signed_in(client, google, 
     assert db.scalar(select(User).where(User.email == identity["email"])).login_count == 2
 
 
-def test_existing_email_account_is_linked(client, google, db):
+def test_existing_email_account_is_linked_and_loses_its_password(client, google, db):
+    # Email sign-up doesn't prove ownership: someone could register the address first with their own password.
+    client.post("/api/auth/register", json={"email": "planted@example.test", "password": "attacker-pass-1",
+                                            "is_minor": False, "accept_privacy_notice": True})
     identity, fake_post = google
-    identity.update(sub="google-student", email="student@demo.test")
+    identity.update(sub="google-planted", email="planted@example.test")
     r = sign_in_with_google(client, fake_post)
     assert r.headers["location"] == "/dashboard"
-    assert db.scalar(select(User).where(User.email == "student@demo.test")).google_sub == "google-student"
+    assert db.scalar(select(User).where(User.email == "planted@example.test")).google_sub == "google-planted"
+    r = client.post("/api/auth/login", json={"email": "planted@example.test", "password": "attacker-pass-1"})
+    assert r.status_code == 401
 
 
 def test_forged_state_is_rejected(client, google):
@@ -127,5 +132,5 @@ def test_dashboard_greets_with_the_sign_up_name(client, google):
     identity.update(sub="google-greeting", email="asha.greeting@example.test", name="Asha Rao")
     assert sign_in_with_google(client, fake_post).headers["location"] == "/register/google"
     client.post("/register/google", data={"minor": "no", "privacy": "on", "name": "Asha R."})
-    assert "Hello, future Dr. Asha R." in client.get("/dashboard").text
+    assert "Welcome back, Asha R.!" in client.get("/dashboard").text
     assert 'value="Asha R."' in client.get("/profile").text  # profile name pre-filled

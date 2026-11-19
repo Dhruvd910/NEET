@@ -59,7 +59,10 @@ Rules:
     such as "A-II, B-I, C-IV, D-III". List-II must be scrambled, so the correct answer is never
     "A-I, B-II, C-III, D-IV".
   Aim for roughly: {format_mix}.
-- Difficulty mix: about 40% easy, 45% medium, 15% hard. Numericals must use clean numbers and SI units.
+- Match the level of recent NEET-UG papers (2022–2025), which students find harder than typical practice sets:
+  most questions need two steps of reasoning, combine two NCERT facts, or hide a subtle trap in one statement
+  or option. Avoid one-line recall a student answers in five seconds.
+- Difficulty mix: about 15% easy, 50% medium, 35% hard. Numericals must use clean numbers and SI units.
 - Use plain text (Unicode for subscripts/superscripts like H₂O, 10⁻³, x²); no LaTeX, no images.
 - explanation: 1–3 sentences showing why the answer is right.
 - Avoid repeating these existing questions in this chapter:
@@ -208,7 +211,7 @@ def generate_batch(db: Session, chapter: SyllabusChapter, n: int = 6, rng: rando
     rng = rng or random.Random()
     res = BatchResult(chapter=chapter.name)
     existing = list(db.scalars(select(Question).where(Question.chapter_id == chapter.id)))
-    avoid = "\n".join(f"- {q.stem.splitlines()[0][:110]}" for q in existing[-40:]) or "- (none yet)"
+    avoid = "\n".join(f"- {q.stem.splitlines()[0][:90]}" for q in existing[-120:]) or "- (none yet)"
     fmt_mix = ("4 single, 1 statements, 1 match" if chapter.subject in ("Physics",) else
                "3 single, 1 statements, 1 assertion_reason, 1 match")
     own_client = client is None
@@ -231,7 +234,7 @@ def generate_batch(db: Session, chapter: SyllabusChapter, n: int = 6, rng: rando
                 res.rejected.append(why)
                 continue
             toks = _norm_tokens(q["stem"])
-            if any(_similar(toks, t) > 0.75 for t in seen_tokens):
+            if any(_similar(toks, t) > 0.6 for t in seen_tokens):  # the same fact in new words is a repeat too
                 res.rejected.append("near-duplicate")
                 continue
             seen_tokens.append(toks)
@@ -304,7 +307,7 @@ def unseen_counts(db: Session, user_id: int) -> dict[str, int]:
     from app.services.exams import SERVED
     seen = select(ExamAttemptItem.question_id).join(ExamAttempt).where(ExamAttempt.user_id == user_id)
     rows = db.execute(select(Question.subject, func.count()).where(
-        Question.review_status.in_(SERVED), Question.id.not_in(seen)).group_by(Question.subject)).all()
+        Question.review_status.in_(SERVED), Question.pyq_year.is_(None), Question.id.not_in(seen)).group_by(Question.subject)).all()
     return dict(rows)
 
 

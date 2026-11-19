@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.models import (
-    AcademicRecord, ChapterProgress, ChatSession, ConsentRecord, ExamAttempt, ExamProfile, LoginEvent, MockTest,
+    AcademicRecord, ChapterProgress, ChatSession, ConsentRecord, ExamAttempt, ExamProfile, LoginEvent, MockTest, Role,
     PreferenceList, RoadmapItem, SavedCollege, StudentProfile, StudyPlan, User,
 )
 from app.security import (
@@ -159,6 +159,11 @@ def google_user(db: Session, claims: dict) -> User | None:
         user = db.scalar(select(User).where(User.email == claims["email"].lower()))
         if user is not None:
             user.google_sub = claims["sub"]
+            # Email sign-up never proved who owns the address; Google just did. Drop any password set by whoever
+            # registered it first, so a planted account can't keep reading the real owner's data. Admin accounts
+            # are created by the site owner and keep their password for the admin sign-in.
+            if user.role != Role.admin:
+                user.password_hash = NO_PASSWORD
     if user is not None:
         user.name = user.name or claims.get("name")
         db.commit()

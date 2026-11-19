@@ -109,6 +109,11 @@ def phone_verify(otp: str = Form(...), p: Page = Depends(page)):
                           else "That code didn't work. Check it, or ask for a new code.", status_code=400)
     user = p.db.scalar(select(User).where(User.tekurious_user_id == who["id"]))
     user = user or p.db.scalar(select(User).where(User.phone == who["phone"]))
+    if user is not None and flow.get("stub"):
+        # Test mode accepts 123456 for every number, so it must never open an account that already exists.
+        return p.render("auth/login.html", status_code=403, countries=phone_auth.countries(),
+                        phone_error="Phone sign-in is still in testing, so it can't open an existing account yet. "
+                                    "Use \"Continue with Google\" instead.")
     method = "phone"
     if user is None:
         if not flow.get("consented"):  # numbers new to us always pass the sign-up page first; be safe anyway

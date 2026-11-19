@@ -5,21 +5,31 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 
+from app import admin_bridge
+from app.config import get_settings
 from app.models import LoginEvent, Role, User
 from app.routers import admin as admin_api
+from app.routers import auth as auth_api
+from app.security import record_login
 from app.services import admin_activity
-from app.web.core import Page, admin_page, templates
+from app.web.core import Page, admin_page, page, templates
 from app.web.routes_student import error_text
 
 router = APIRouter(include_in_schema=False)
-templates.env.globals.update(triage=admin_activity.triage, spark=admin_activity.spark)
+templates.env.globals.update(triage=admin_activity.triage, spark=admin_activity.spark,
+                             CONSOLE_CSS="/static/admin.css", HTMX_JS="/static/vendor/htmx-2.0.4.min.js?v=2.0.4")
 
 TABS = [("overview", "Overview"), ("users", "Students"), ("imports", "Imports"), ("sources", "Sources"), ("rules", "Eligibility rules"),
         ("info", "Info pages"), ("colleges", "Colleges"), ("issues", "Issues & reviews")]
+# Sidebar of the shared admin console (same layout as JEE Workbench's): (tab, label, icon)
+SECTIONS = [("overview", "Overview", "HeartPulse"), ("users", "Students", "BadgeId"), ("imports", "Imports", "Clipboard"),
+            ("sources", "Sources", "Microscope"), ("rules", "Eligibility rules", "Scale"), ("info", "Info pages", "Pill"),
+            ("colleges", "Colleges", "Hospital"), ("issues", "Issues & reviews", "Flag")]
+CONSOLE = {"exam": "neet", "SECTIONS": SECTIONS}
 TABLE_COLUMNS = {
     "cutoffs": "college_code or college_name, course, authority, exam_year, round, quota, category, closing_rank "
                "(+ opening_rank, seat_type, rank_basis, domicile_required, round_name)",
@@ -68,7 +78,8 @@ def _render(p: Page, tab: str, msg: str | None = None, error: str | None = None,
         ctx.update(issues=admin_api.issues("open", u, db), reviews=admin_api.pending_reviews(u, db))
     elif tab == "users":
         ctx.update(users_view(db, extra.pop("q", None) or ""))
-    return p.render("admin.html", status_code=status_code, TABS=TABS, tab=tab, msg=msg, error=error, **ctx, **extra)
+    return p.render("admin.html", status_code=status_code, TABS=TABS, tab=tab, msg=msg, error=error, section=tab,
+                    **CONSOLE, **ctx, **extra)
 
 
 def users_view(db, q: str) -> dict:
@@ -98,7 +109,7 @@ def student_file(user_id: int, p: Page = Depends(admin_page)):
         raise HTTPException(404, "Student not found")
     admin_api.audit(p.db, p.user, "view_student", "user", user_id, {})
     p.db.commit()
-    return p.render("admin_student.html", TABS=TABS, tab="users", msg=None, error=None,
+    return p.render("admin_student.html", TABS=TABS, tab="users", msg=None, error=None, section="users", **CONSOLE,
                     stats=admin_api.stats(p.user, p.db), f=admin_activity.student_file(p.db, target))
 
 
@@ -204,3 +215,30 @@ async def admin_action(tab: str, action: str, request: Request, p: Page = Depend
         p.db.rollback()
         return _render(p, tab, error=error_text(e), status_code=422)
     return _render(p, tab, msg=msg)
+
+
+# ---------------------------------------------------------------- NEET | JEE switch (shared admin console)
+
+@router.get("/admin/switch/jee")
+def switch_to_jee(p: Page = Depends(admin_page)):
+    """To the JEE Workbench console; with ADMIN_BRIDGE_SECRET set on both sites the admin arrives signed in."""
+    s = get_settings()
+    target = s.jee_url.rstrip("/")
+    if s.admin_bridge_secret and p.user.email:
+        from urllib.parse import quote
+        return RedirectResponse(f"{target}/admin/bridge?t={quote(admin_bridge.make(s.admin_bridge_secret, p.user.email, 'jee'))}",
+                                status_code=303)
+    return RedirectResponse(f"{target}/admin", status_code=303)
+
+
+@router.get("/admin/bridge")
+def bridge(t: str = "", p: Page = Depends(page)):
+    """Arriving from the JEE console with a signed link: sign in the admin with the same email here."""
+    email = admin_bridge.read(get_settings().admin_bridge_secret, t, "neet")
+    user = p.db.scalar(select(User).where(User.email == email)) if email else None
+    if user is None or user.role != Role.admin:
+        return RedirectResponse("/admin/login", status_code=303)
+    record_login(p.db, user, "admin", p.request)
+    resp = RedirectResponse("/admin", status_code=303)
+    auth_api._set_cookie(resp, user)
+    return resp

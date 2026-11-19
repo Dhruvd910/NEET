@@ -69,11 +69,12 @@ def pattern(db: Session = Depends(get_db)):
 
 
 class AttemptIn(BaseModel):
-    mode: Literal["full", "mini", "subject", "chapter", "weak"]
+    mode: Literal["full", "mini", "subject", "chapter", "weak", "daily", "pyq"]
     subject: Literal["Physics", "Chemistry", "Botany", "Zoology", "Biology"] | None = None
     chapter_ids: list[int] | None = Field(None, max_length=10)
     count: int | None = Field(None, ge=5, le=90)
     strict_omr: bool = False
+    year: int | None = Field(None, ge=2013, le=2100)  # previous-year paper
 
 
 def _own_attempt(db: Session, user: User, attempt_id: int) -> ExamAttempt:
@@ -95,7 +96,7 @@ def create_paper(body: AttemptIn, user: User = Depends(current_user), db: Sessio
     the client polls /exams/readiness and tries again."""
     try:
         a = exams.create_attempt(db, user, body.mode, subject=body.subject, chapter_ids=body.chapter_ids,
-                                 count=body.count, strict_omr=body.strict_omr)
+                                 count=body.count, strict_omr=body.strict_omr, year=body.year)
     except exams.PaperNotReady as e:
         db.rollback()
         return JSONResponse({"status": "preparing", "detail": str(e), "needed": e.needed,

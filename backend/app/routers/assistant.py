@@ -63,7 +63,7 @@ def post_message(body: MessageIn, user: User = Depends(current_user), db: Sessio
         db.add(s)
         db.flush()
     db.add(ChatMessage(session_id=s.id, role="user", content=body.content))
-    db.flush()
+    db.commit()  # don't hold SQLite's single write lock while the AI answers (seconds); other students' saves wait on it
     db.refresh(s)
     history = [{"role": m.role, "content": m.content} for m in s.messages[-HISTORY_TURNS:]]
     reply = answer(db, user, history, voice=body.voice)

@@ -44,9 +44,13 @@ class Settings(BaseSettings):
     # Practice question bank: AI-written questions, kept only when an independent model gets the same answer.
     # Each student only ever sees questions they have not seen before; the bank is topped up automatically.
     question_gen_enabled: bool = True
-    question_writer_model: str = "anthropic/claude-haiku-5.5"
+    question_writer_model: str = "anthropic/claude-sonnet-5.5"  # NEET-level multi-step questions; Haiku's were too easy
     question_checker_model: str = "deepseek/deepseek-v4-flash"  # different provider, so mistakes don't line up
     question_gen_workers: int = 6
+    # Free models that write new versions of bank questions (new numbers / wording) and check their answers.
+    variant_writer_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    variant_checker_models: list[str] = ["nvidia/nemotron-3.5-super-vl:free", "google/gemma-4-31b-it:free"]
+    variants_per_day: int = 300  # each takes two calls; the free pool allows 1000 a day
     unseen_buffer_per_section: int = 60  # top up when a student has fewer unseen questions than this
 
     # Semantic search. Empty key => BM25 keyword ranking only.
@@ -99,6 +103,9 @@ class Settings(BaseSettings):
     unconsented_minor_retention_days: int = 7
     # Reference to the completed legal review (ticket, memo id). Empty = not done; shown on /admin readiness.
     dpdp_review_reference: str = ""
+    # Shared admin console: the JEE Workbench site's address, and the secret both sites use for the NEET | JEE switcher.
+    jee_url: str = "http://localhost:8770"
+    admin_bridge_secret: str = ""
 
     # Predictor defaults
     predictor_years_considered: int = 3

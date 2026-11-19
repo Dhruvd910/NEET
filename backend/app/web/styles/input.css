@@ -22,12 +22,72 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-
+/* Night-desk theme: deep clinical navy with teal accents. */
 :root {
   --font-jakarta: "Plus Jakarta Sans";
-  --background: #f5f7fb;
-  --foreground: #0f172a;
-  --brand: #0d9488;
+  --background: #0a1420;
+  --foreground: #e8f1f6;
+  --brand: #2dd4bf;
+}
+
+/* Dark-mode shades for the palettes templates use as light backgrounds and accents. */
+@theme {
+  --color-slate-100: rgb(255 255 255 / 0.07);
+  --color-slate-200: rgb(255 255 255 / 0.11);
+
+  --color-teal-100: rgb(153 246 228 / 0.6);
+  --color-teal-200: rgb(45 212 191 / 0.28);
+  --color-teal-700: #2fd0bd;
+  --color-teal-800: #6eead9;
+  --color-teal-900: #9df3e7;
+
+  --color-emerald-50: rgb(52 211 153 / 0.10);
+  --color-emerald-100: rgb(167 243 208 / 0.5);
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+
+  --color-indigo-50: rgb(99 102 241 / 0.12);
+  --color-indigo-100: rgb(99 102 241 / 0.20);
+  --color-indigo-600: #818cf8;
+  --color-indigo-700: #a5b4fc;
+
+  --color-cyan-50: rgb(34 211 238 / 0.10);
+  --color-cyan-100: rgb(34 211 238 / 0.16);
+  --color-cyan-200: rgb(34 211 238 / 0.28);
+  --color-cyan-700: #67e8f9;
+  --color-cyan-800: #a5f3fc;
+  --color-cyan-900: #cffafe;
+
+  --color-sky-50: rgb(56 189 248 / 0.10);
+  --color-sky-100: rgb(56 189 248 / 0.16);
+  --color-sky-200: rgb(56 189 248 / 0.30);
+  --color-sky-700: #7dd3fc;
+  --color-sky-800: #bae6fd;
+  --color-sky-900: #e0f2fe;
+
+  --color-amber-50: rgb(251 191 36 / 0.10);
+  --color-amber-100: rgb(251 191 36 / 0.16);
+  --color-amber-200: rgb(251 191 36 / 0.28);
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+
+  --color-red-50: rgb(248 113 113 / 0.10);
+  --color-red-100: rgb(248 113 113 / 0.16);
+  --color-red-200: rgb(248 113 113 / 0.30);
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-red-900: #fee2e2;
+
+  --color-rose-700: #fda4af;
+  --color-rose-50: rgb(244 63 94 / 0.10);
+  --color-rose-100: rgb(244 63 94 / 0.16);
+  --color-rose-200: rgb(244 63 94 / 0.28);
+  --color-rose-300: rgb(244 63 94 / 0.40);
+  --color-rose-800: #fda4af;
+  --color-rose-900: #fecdd3;
+  --color-rose-950: #ffe4e6;
 }
 
 @theme inline {
@@ -46,18 +106,25 @@ body {
   color: var(--foreground);
   background-color: var(--background);
   background-image:
-    radial-gradient(52rem 28rem at 88% -8%, rgb(13 148 136 / 0.1), transparent 70%),
-    radial-gradient(44rem 24rem at -6% 2%, rgb(8 145 178 / 0.09), transparent 70%),
-    radial-gradient(40rem 22rem at 50% 100%, rgb(16 185 129 / 0.06), transparent 70%);
+    radial-gradient(52rem 30rem at 86% -10%, rgb(16 185 129 / 0.13), transparent 65%),
+    radial-gradient(46rem 26rem at -8% 4%, rgb(8 145 178 / 0.10), transparent 65%),
+    radial-gradient(46rem 28rem at 106% 52%, rgb(37 99 235 / 0.09), transparent 62%),
+    radial-gradient(42rem 26rem at -4% 102%, rgb(20 184 166 / 0.10), transparent 65%);
   background-repeat: no-repeat;
+  background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: #99f6e4;
-  color: #0f172a;
+  background: #5eead4;
+  color: #05242a;
 }
+
+/* Sidebar scrollbar: quiet and dark. */
+aside nav::-webkit-scrollbar,
+aside::-webkit-scrollbar { width: 8px; }
+aside::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.12); border-radius: 8px; }
 
 @layer base {
   /* Keyboard focus stays visible everywhere; inputs opt out only when their own
@@ -70,40 +137,40 @@ body {
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_2px_rgb(15_23_42/0.04),0_18px_40px_-24px_rgb(15_23_42/0.18)];
+    @apply rounded-2xl border border-white/10 bg-white/[0.045] p-5 shadow-[0_1px_2px_rgb(0_0_0/0.3),0_24px_48px_-28px_rgb(0_0_0/0.55)];
   }
   .card-lift {
-    @apply transition duration-200 ease-out hover:-translate-y-1 hover:border-teal-200 hover:shadow-[0_2px_4px_rgb(15_23_42/0.05),0_30px_60px_-28px_rgb(13_148_136/0.35)];
+    @apply transition duration-200 ease-out hover:-translate-y-1 hover:border-teal-400/40 hover:shadow-[0_2px_4px_rgb(0_0_0/0.2),0_30px_60px_-28px_rgb(13_148_136/0.45)];
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-900/15 transition duration-200 hover:-translate-y-px hover:from-teal-500 hover:to-teal-700 hover:shadow-teal-900/25 disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-400 to-emerald-400 px-4 py-2.5 text-sm font-bold text-emerald-950 shadow-lg shadow-emerald-950/30 transition duration-200 hover:-translate-y-px hover:from-teal-300 hover:to-emerald-300 disabled:pointer-events-none disabled:opacity-50;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition duration-200 hover:-translate-y-px hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/12 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-slate-50 shadow-sm transition duration-200 hover:-translate-y-px hover:border-white/20 hover:bg-white/[0.09] disabled:opacity-50;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06] hover:text-white;
   }
   .input {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm transition focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/10;
+    @apply w-full rounded-xl border border-white/12 bg-white/[0.05] px-3.5 py-2.5 text-sm text-slate-100 shadow-sm transition placeholder:text-slate-500 focus:border-teal-400 focus:outline-none focus:ring-4 focus:ring-teal-400/15;
   }
   .label {
-    @apply mb-1.5 block text-sm font-semibold text-slate-700;
+    @apply mb-1.5 block text-sm font-semibold text-slate-300;
   }
   .h1 {
-    @apply font-display text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl;
+    @apply font-display text-3xl font-extrabold tracking-tight text-slate-50 sm:text-4xl;
   }
   .h2 {
-    @apply font-display text-lg font-bold tracking-tight text-slate-900;
+    @apply font-display text-lg font-bold tracking-tight text-slate-50;
   }
   .muted {
-    @apply text-sm leading-relaxed text-slate-600;
+    @apply text-sm leading-relaxed text-slate-400;
   }
   .eyebrow {
-    @apply text-xs font-bold uppercase tracking-[0.14em];
+    @apply text-xs font-bold uppercase tracking-[0.14em] text-teal-300;
   }
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.06] px-3 py-1 text-xs font-semibold text-slate-300;
   }
 }
 
@@ -131,6 +198,7 @@ body {
 /* Printed exam booklet: off-white paper and a serif face like the NTA question paper. */
 .booklet {
   background: #fffef9;
+  color: #14202c;
   font-family: "Times New Roman", Georgia, "Noto Serif", serif;
 }
 
@@ -145,8 +213,8 @@ body {
 /* Faint clinical cross grid, for wide decorative bands. */
 .med-pattern {
   background-image:
-    linear-gradient(to right, rgb(13 148 136 / 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(13 148 136 / 0.07) 1px, transparent 1px);
+    linear-gradient(to right, rgb(94 234 212 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(94 234 212 / 0.06) 1px, transparent 1px);
   background-size: 26px 26px;
 }
 
@@ -156,9 +224,75 @@ body {
   background-size: 48px 48px;
 }
 
+/* ------------------------------------------------------------------ */
+/* Dark-theme remaps. Many pages hardcode light-theme utilities        */
+/* (text-slate-900, bg-white, …). Unlayered rules outrank Tailwind's   */
+/* layered utilities, so the same classes stay readable on the dark    */
+/* surface. The exam booklet opts back out below.                      */
+/* ------------------------------------------------------------------ */
+.text-slate-900, .text-slate-800 { color: #e8f1f6; }
+.text-slate-700 { color: #c9d6e2; }
+.text-slate-600 { color: #a9bccb; }
+.text-slate-500 { color: #8fa3b5; }
+.text-slate-400 { color: #71869b; }
+
+.bg-white { background-color: rgb(255 255 255 / 0.05); }
+.bg-white\/95 { background-color: rgb(13 25 40 / 0.92); }
+.bg-white\/90, .bg-white\/85, .bg-white\/80, .bg-white\/75, .bg-white\/70 { background-color: rgb(255 255 255 / 0.05); }
+.bg-slate-50 { background-color: rgb(255 255 255 / 0.035); }
+.bg-teal-50 { background-color: rgb(45 212 191 / 0.09); }
+.text-slate-200 { color: #dbe7f0; }
+.text-slate-100 { color: #dbe7f0; }
+
+/* Small light badges floating over artwork keep real paper text. */
+.paper-chip { background: #f1f5f9; color: #0f172a; }
+.paper-chip .text-slate-900, .paper-chip.text-slate-900,
+.paper-chip .text-slate-800, .paper-chip.text-slate-800 { color: #0f172a; }
+.paper-chip .text-slate-500 { color: #64748b; }
+
+.hover\:bg-slate-100:hover { background-color: rgb(255 255 255 / 0.07); }
+.hover\:bg-slate-50:hover { background-color: rgb(255 255 255 / 0.05); }
+.hover\:bg-white:hover { background-color: rgb(255 255 255 / 0.08); }
+.hover\:border-slate-300:hover { border-color: rgb(255 255 255 / 0.16); }
+.hover\:bg-slate-900\/5:hover { background-color: rgb(255 255 255 / 0.06); }
+
+.border-slate-200, .border-slate-300, .border-slate-200\/80, .border-slate-200\/70 { border-color: rgb(255 255 255 / 0.11); }
+.ring-slate-200, .ring-slate-300 { --tw-ring-color: rgb(255 255 255 / 0.13); }
+.divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(255 255 255 / 0.08); }
+
+.shadow-slate-900\/10, .shadow-slate-900\/05 { --tw-shadow-color: rgb(0 0 0 / 0.35); }
+
+/* Gradients written for the light theme get brighter stops here. */
+.from-teal-600 { --tw-gradient-from: #14b8a6; --tw-gradient-from-position: ; }
+.to-indigo-600 { --tw-gradient-to: #818cf8; --tw-gradient-to-position: ; }
+.from-teal-400 { --tw-gradient-from: #2dd4bf; --tw-gradient-from-position: ; }
+.via-teal-600 { --tw-gradient-via: #14b8a6; }
+.to-indigo-700 { --tw-gradient-to: #a5b4fc; --tw-gradient-to-position: ; }
+
+/* The exam booklet stays real paper: black ink on off-white, no exceptions. */
+.booklet .text-slate-900, .booklet .text-slate-800, .booklet .text-slate-700,
+.booklet .text-slate-600, .booklet .text-slate-500, .booklet .text-slate-400,
+.booklet .text-slate-300 { color: #14202c; }
+.booklet .bg-white, .booklet .bg-slate-50, .booklet .bg-slate-100, .booklet .bg-slate-200 {
+  background-color: #fffef9;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .animate-float,
   .animate-rise,
   .ecg-trace { animation: none !important; stroke-dashoffset: 0; }
+}
+
+
+/* ---------------------------------------------------------------- collapsible sidebar (same rules on JEE Workbench) */
+.side, .side-offset { transition: width .2s ease, margin-left .2s ease; }
+.side-rule { display: none; }
+@media (min-width: 1024px) {
+  html.nav-collapsed .side { width: 4.5rem; }
+  html.nav-collapsed .side-offset { margin-left: 4.5rem; }
+  html.nav-collapsed .side .side-label, html.nav-collapsed .side .side-extra { display: none; }
+  html.nav-collapsed .side .side-rule { display: block; }
+  html.nav-collapsed .side nav a, html.nav-collapsed .side > a { justify-content: center; padding-left: 0; padding-right: 0; }
 }

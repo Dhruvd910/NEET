@@ -138,7 +138,7 @@ def test_admin_login_page(client):
     assert client.post("/admin/login", data={"email": "admin@demo.test", "password": "wrong"}).status_code == 401
     ok = client.post("/admin/login", data={"email": "admin@demo.test", "password": "demo-password-123"}, follow_redirects=False)
     assert ok.status_code == 303 and ok.headers["location"] == "/admin"
-    assert "Students" in client.get("/admin").text and "Ward rounds" in client.get("/admin").text
+    assert "Students" in client.get("/admin").text and "Latest activity" in client.get("/admin").text
 
 
 def test_admin_tabs_and_actions(admin):
@@ -173,7 +173,7 @@ def test_admin_console_and_student_file(admin, db):
     prof.category, prof.pwd = "OBC", True
     db.commit()
     overview = admin.get("/admin").text
-    assert "Ward rounds" in overview and "Go-live checklist" in overview
+    assert "Latest activity" in overview and "Go-live checklist" in overview
     assert "Student register" in admin.get("/admin?tab=users").text
     r = admin.get(f"/admin/students/{student.id}")
     assert r.status_code == 200 and "Student file" in r.text and "Attendance" in r.text
@@ -196,3 +196,32 @@ def test_static_files_are_cacheable_and_pages_need_no_other_servers(client):
     assert "googleapis" not in page and "jsdelivr" not in page
     assert client.get("/static/vendor/htmx-2.0.4.min.js?v=2.0.4").status_code == 200
     assert client.get("/static/fonts/plus-jakarta-sans-latin.woff2").status_code == 200
+
+
+def test_shared_admin_console_switch(admin, monkeypatch):
+    """The console has the NEET | JEE switcher; with a shared secret the switch carries a signed, single-use link."""
+    from app import admin_bridge
+    from app.config import get_settings
+    page = admin.get("/admin").text
+    assert 'href="/admin/switch/jee"' in page and "on-neet" in page
+    monkeypatch.setattr(get_settings(), "admin_bridge_secret", "")
+    assert admin.get("/admin/switch/jee", follow_redirects=False).headers["location"] == "http://localhost:8770/admin"
+    monkeypatch.setattr(get_settings(), "admin_bridge_secret", "shared-secret")
+    loc = admin.get("/admin/switch/jee", follow_redirects=False).headers["location"]
+    assert loc.startswith("http://localhost:8770/admin/bridge?t=")
+    token = admin_bridge.make("shared-secret", "admin@demo.test", "neet")
+    from fastapi.testclient import TestClient
+    from app.main import app
+    fresh = TestClient(app)
+    assert fresh.get(f"/admin/bridge?t={token}", follow_redirects=False).headers["location"] == "/admin"
+    assert "Go-live checklist" in fresh.get("/admin").text
+    assert TestClient(app).get(f"/admin/bridge?t={token}", follow_redirects=False).headers["location"] == "/admin/login"
+
+
+def test_admin_login_offers_google_when_configured(client, monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "google_client_id", "")
+    assert "Continue with Google" not in client.get("/admin/login").text
+    monkeypatch.setattr(get_settings(), "google_client_id", "id.apps.googleusercontent.com")
+    monkeypatch.setattr(get_settings(), "google_client_secret", "secret")
+    assert 'href="/auth/google?next=/admin"' in client.get("/admin/login").text

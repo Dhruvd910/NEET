@@ -57,7 +57,7 @@ async def security_and_limits(request: Request, call_next):
     elif path.startswith("/api/auth/guardian-consent") or (
             path.startswith(("/login", "/register", "/auth/", "/admin/login")) and request.method == "POST"):
         bucket, limit = "auth", settings.rate_limit_auth
-    elif path.startswith("/api/assistant/messages"):
+    elif path.startswith(("/api/assistant/messages", "/assistant/send")):  # each message is a paid AI call
         bucket, limit = "assistant", settings.rate_limit_assistant
     else:
         bucket, limit = "default", settings.rate_limit_default

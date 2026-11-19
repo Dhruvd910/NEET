@@ -25,9 +25,11 @@ _SCRYPT = dict(n=2**14, r=8, p=1, dklen=64)
 
 def client_ip(request: Request) -> str:
     if get_settings().trust_proxy_headers:
-        fwd = request.headers.get("x-forwarded-for")
+        # Visitors can write X-Forwarded-For themselves; only the entry our proxy added last (or Cloudflare's own
+        # header) is real. Trusting the first entry would let anyone skip the rate limits.
+        fwd = request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for")
         if fwd:
-            return fwd.split(",")[0].strip()
+            return fwd.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 

@@ -22,6 +22,8 @@ from app.web.routes_student import error_text
 router = APIRouter(include_in_schema=False)
 
 MODES = {
+    "pyq": ("Previous year papers", "Real NEET questions from past years, with the official answer keys.", "Flag"),
+    "daily": ("Daily quiz", "12 questions, 3 per subject · 12 minutes · a new one every day.", "Calendar"),
     "full": ("Full NEET mock", "180 questions · 3 hours · exam-day flow with admit card and OMR sheet.", "Clipboard"),
     "mini": ("Mini NEET mock", "Same format and 1 minute per question, fewer questions per section.", "Clock"),
     "subject": ("Subject practice", "One subject, timed at 1 minute per question.", "Sparkle"),
@@ -87,7 +89,7 @@ def hall(p: Page = Depends(student_page), mode: str | None = None, chapter: int 
     pre = next((c for c in chapters if c["id"] == chapter), None)
     mode = "chapter" if pre else (mode if mode in MODES else None)
     return p.render("practice/hall.html", MODES=MODES, mode=mode, attempts=attempts, chapters=chapters,
-                    pre_chapter=pre, pattern=exams.NEET_PATTERN, r=_readiness(p),
+                    pre_chapter=pre, pattern=exams.NEET_PATTERN, r=_readiness(p), pyq_years=exams.pyq_years(p.db),
                     perf=practice_api.performance(p.user, p.db),
                     in_progress=next((a for a in attempts if a["status"] == "in_progress"), None))
 
@@ -110,11 +112,14 @@ async def prepare(request: Request, p: Page = Depends(student_page)):
         body.update(chapter_ids=[int(x) for x in f.getlist("chapter_ids") if x.isdigit()], count=_num(f.get("count"), 20))
     elif mode == "weak":
         body["count"] = _num(f.get("count"), 20)
+    elif mode == "pyq":
+        body.update(year=_num(f.get("year"), 0) or None, subject=f.get("subject") or None)
     try:
         if mode == "chapter" and not body["chapter_ids"]:
             raise HTTPException(422, "Pick at least one chapter.")
         a = exams.create_attempt(p.db, p.user, mode, subject=body.get("subject"), chapter_ids=body.get("chapter_ids"),
-                                 count=practice_api.AttemptIn(**body).count, strict_omr=body["strict_omr"])
+                                 count=practice_api.AttemptIn(**body).count, strict_omr=body["strict_omr"],
+                                 year=body.get("year"))
     except exams.PaperNotReady as e:
         p.db.rollback()
         if e.generating:  # fresh questions are being written; this panel posts the same form again shortly

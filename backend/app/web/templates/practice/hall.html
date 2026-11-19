@@ -73,6 +73,16 @@
             <p class="text-xs text-slate-500">Pick up to 10. If a chapter runs short of new questions, fresh ones are written for it.</p>
             <label>Questions <input name="count" class="input mt-1 w-28" type="number" min="5" max="90" value="20"></label>
           </div>
+        {% elif mode == "pyq" %}
+          {% if pyq_years %}
+            <div class="flex flex-wrap gap-3 text-sm">
+              <label>Year <select name="year" class="input mt-1">{% for y, n in pyq_years %}<option value="{{ y }}">NEET {{ y }} ({{ n }} questions)</option>{% endfor %}</select></label>
+              <label>Subject <select name="subject" class="input mt-1"><option value="">Whole paper</option>{% for s in SECTIONS + ["Biology"] %}<option>{{ s }}</option>{% endfor %}</select></label>
+            </div>
+            <p class="text-xs text-slate-500">Answers follow NTA's official final answer key. You can retake a year's paper.</p>
+          {% else %}
+            <p class="text-sm">No previous-year papers have been added yet.</p>
+          {% endif %}
         {% elif mode == "weak" %}
           <label class="block text-sm">Questions <input name="count" class="input mt-1 w-28" type="number" min="5" max="90" value="20"></label>
         {% endif %}

@@ -1,43 +1,142 @@
 {% extends "base.html" %}
-{% from "_ui.html" import page_header, empty, college_card %}
+{% from "_ui.html" import empty, college_card %}
+{% from "_icons.html" import icon %}
+{% from "_learning.html" import learning_panel %}
 {% block title %}Dashboard · NEET Compass{% endblock %}
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-7">
   {# The name from the profile form, else the one given at sign-up (Google, phone). #}
   {% set who = (profile.display_name if profile and profile.display_name else me.name) or "" %}
-  {% call page_header("Hello, future Dr." ~ ((" " ~ who) if who else ""), "Stethoscope", "Future doctor's desk") %}
-    Your NEET journey at a glance.
-  {% endcall %}
+
+  {# ── Hero banner ──────────────────────────────────────────────────── #}
+  <section class="animate-rise relative overflow-hidden rounded-3xl border border-teal-400/25 bg-gradient-to-br from-emerald-950/90 via-[#0c2733] to-[#0a1a2c] p-7 sm:p-9">
+    <span aria-hidden="true" class="med-crosses pointer-events-none absolute inset-0 opacity-25"></span>
+    <span aria-hidden="true" class="pointer-events-none absolute -right-10 -top-14 h-64 w-64 rounded-full bg-teal-400/15 blur-3xl"></span>
+    {{ icon("PulseRule", "pointer-events-none absolute bottom-6 left-7 hidden h-3 w-56 text-teal-300/50 sm:block") }}
+    <img src="/static/mascot/avatar-circle.png" alt="" aria-hidden="true"
+         class="animate-float pointer-events-none absolute right-6 top-1/2 hidden -translate-y-1/2 sm:block sm:h-36 sm:w-36 lg:h-44 lg:w-44 rounded-full ring-2 ring-teal-300/40 shadow-2xl shadow-emerald-950/50">
+    <div class="relative max-w-xl">
+      <span class="inline-flex items-center gap-1.5 rounded-full bg-teal-400/15 px-3 py-1 text-xs font-bold text-teal-200 ring-1 ring-teal-400/30">
+        Welcome back, {{ who or "Aspirant" }}! 👋
+      </span>
+      <h1 class="mt-3 font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+        Your NEET journey,
+        <span class="block bg-gradient-to-r from-teal-300 to-emerald-300 bg-clip-text text-transparent">mapped out.</span>
+      </h1>
+      <p class="mt-2 text-sm leading-relaxed text-slate-300 sm:text-base">Study smarter. Score higher. Achieve your dream.</p>
+      <div class="mt-5 flex flex-wrap items-center gap-3">
+        <a href="/practice" class="btn">Continue studying {{ icon("Arrow", "h-4 w-4") }}</a>
+        {% if not profile %}<a href="/profile" class="btn-secondary">Complete your profile</a>{% endif %}
+      </div>
+    </div>
+  </section>
 
   {% if not profile %}
-    {% call empty("Complete your profile to personalise everything") %}<a class="text-teal-700 underline" href="/profile">Set up your profile</a>{% endcall %}
+    {% call empty("Complete your profile to personalise everything") %}<a class="text-teal-300 underline" href="/profile">Set up your profile</a>{% endcall %}
   {% endif %}
 
+  {# ── Snapshot cards ───────────────────────────────────────────────── #}
   <div class="grid gap-4 md:grid-cols-3">
-    <div class="card">
-      <p class="muted">NEET {{ exam.exam_year if exam else "" }}</p>
-      <p class="mt-1 text-2xl font-semibold">{{ ("AIR " ~ (exam.air|num)) if exam and exam.air else "No rank yet" }}</p>
-      <p class="text-xs text-slate-500">{% if exam and exam.air %}{{ "Official rank" if exam.rank_type.value == "official" else "Estimated" }}{% else %}<a class="underline" href="/profile">Add NEET details</a>{% endif %}</p>
+    <div class="card card-lift">
+      <div class="flex items-center gap-2.5">
+        <span class="grid h-9 w-9 place-items-center rounded-xl bg-teal-400/15 text-teal-300 ring-1 ring-teal-400/25">{{ icon("Target", "h-4.5 w-4.5") }}</span>
+        <p class="muted">NEET {{ exam.exam_year if exam else "" }} rank</p>
+      </div>
+      <p class="mt-2.5 text-2xl font-extrabold text-white">{{ ("AIR " ~ (exam.air|num)) if exam and exam.air else "No rank yet" }}</p>
+      <p class="text-xs text-slate-400">{% if exam and exam.air %}{{ "Official rank" if exam.rank_type.value == "official" else "Estimated" }}{% else %}<a class="underline" href="/profile">Add NEET details</a>{% endif %}</p>
       <a href="/predictor" class="btn mt-3">Check college matches</a>
     </div>
-    <div class="card">
-      <p class="muted">Mock tests</p>
+    <div class="card card-lift">
+      <div class="flex items-center gap-2.5">
+        <span class="grid h-9 w-9 place-items-center rounded-xl bg-indigo-400/15 text-indigo-300 ring-1 ring-indigo-400/25">{{ icon("Clipboard", "h-4.5 w-4.5") }}</span>
+        <p class="muted">Mock tests</p>
+      </div>
       {% if mocks.count %}
-        <p class="mt-1 text-2xl font-semibold">{{ mocks.latest_percent }}% <span class="text-sm font-normal text-slate-500">latest</span></p>
-        <p class="text-xs text-slate-500">Average {{ mocks.average_percent }}% · trend {{ mocks.trend.direction if mocks.trend else "—" }}</p>
-      {% else %}<p class="mt-1 text-sm">No tests logged yet.</p>{% endif %}
+        <p class="mt-2.5 text-2xl font-extrabold text-white">{{ mocks.latest_percent }}% <span class="text-sm font-normal text-slate-400">latest</span></p>
+        <p class="text-xs text-slate-400">Average {{ mocks.average_percent }}% · trend {{ mocks.trend.direction if mocks.trend else "—" }}</p>
+      {% else %}<p class="mt-2.5 text-sm">No tests logged yet.</p>{% endif %}
       <div class="mt-3 flex flex-wrap gap-2">
         <a href="/practice" class="btn">Take a test</a>
         <a href="/study-plan" class="btn-secondary">Study plan</a>
         <a href="/mock-tests" class="btn-secondary">Tracker</a>
       </div>
     </div>
-    <div class="card">
-      <p class="muted">Shortlist</p>
-      <p class="mt-1 text-2xl font-semibold">{{ saved|length }} colleges</p>
+    <div class="card card-lift">
+      <div class="flex items-center gap-2.5">
+        <span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-400/25">{{ icon("Hospital", "h-4.5 w-4.5") }}</span>
+        <p class="muted">Shortlist</p>
+      </div>
+      <p class="mt-2.5 text-2xl font-extrabold text-white">{{ saved|length }} colleges</p>
       <a href="/compare?ids={{ saved|map(attribute='college')|map(attribute='id')|join(',') }}" class="btn-secondary mt-3">Compare</a>
     </div>
   </div>
+
+  {# ── Quick tools: every tool one tap away ─────────────────────────── #}
+  <section aria-label="Quick tools">
+    <h2 class="mb-3 flex items-center gap-2 font-display text-lg font-bold tracking-tight text-white">
+      <span class="text-amber-300">⚡</span> Pick a tool, get moving
+    </h2>
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {% set TOOLS = [
+        ("/predictor", "Target", "teal", "College predictor", "Know your chances"),
+        ("/colleges", "Hospital", "cyan", "College profiles", "Explore top colleges"),
+        ("/compare", "Scale", "indigo", "Compare &amp; cost", "Plan your budget"),
+        ("/practice", "Clipboard", "emerald", "Practice tests", "Sharpen your skills"),
+        ("/study-plan", "Calendar", "rose", "Study plan", "Plan. Practice. Perform."),
+        ("/mock-tests", "Pencil", "amber", "Mock tracker", "Track your progress"),
+        ("/counselling", "HeartPulse", "green", "Counselling help", "Get expert guidance"),
+        ("/assistant", "MessageSquare", "violet", "Ask the assistant", "Your AI study buddy"),
+      ] %}
+      {% set TILE = {
+        "teal": "bg-teal-400/15 text-teal-300 ring-teal-400/30",
+        "cyan": "bg-cyan-400/15 text-cyan-300 ring-cyan-400/30",
+        "indigo": "bg-indigo-400/15 text-indigo-300 ring-indigo-400/30",
+        "emerald": "bg-emerald-400/15 text-emerald-300 ring-emerald-400/30",
+        "rose": "bg-rose-400/15 text-rose-300 ring-rose-400/30",
+        "amber": "bg-amber-400/15 text-amber-300 ring-amber-400/30",
+        "green": "bg-green-400/15 text-green-300 ring-green-400/30",
+        "violet": "bg-violet-400/15 text-violet-300 ring-violet-400/30",
+      } %}
+      {% for href, ic, tone, title, sub in TOOLS %}
+        <a href="{{ href }}" class="card card-lift group !gap-0 !p-4">
+          <div class="flex items-start justify-between gap-2">
+            <span class="grid h-10 w-10 place-items-center rounded-xl ring-1 {{ TILE[tone] }}">{{ icon(ic, "h-5 w-5") }}</span>
+            <span class="text-slate-500 transition group-hover:translate-x-1 group-hover:text-teal-300">{{ icon("Arrow", "h-4 w-4") }}</span>
+          </div>
+          <p class="mt-3 text-sm font-bold text-white">{{ title }}</p>
+          <p class="mt-0.5 text-xs text-slate-400">{{ sub }}</p>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ── Daily quiz (HTMX target must keep its id) ────────────────────── #}
+  <section class="card" id="daily-status-wrap" aria-label="Daily quiz">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="eyebrow">Daily quiz</p>
+        {% if daily and daily.status == "submitted" %}
+          <p class="mt-1 text-lg font-bold text-white">{{ daily.score }} / {{ daily.max_score }} today</p>
+          <p class="text-xs text-slate-400">A new quiz opens tomorrow.</p>
+        {% elif daily and daily.status == "in_progress" %}
+          <p class="mt-1 text-lg font-bold text-white">In progress</p>
+        {% else %}
+          <p class="mt-1 text-sm text-slate-300">12 questions, 3 from each subject. About 12 minutes.</p>
+        {% endif %}
+      </div>
+      {% if daily and daily.status != "ready" %}
+        <a class="btn-secondary" href="/practice/{{ daily.id }}">{{ "See answers" if daily.status == "submitted" else "Continue" }}</a>
+      {% else %}
+        <form hx-post="/practice/prepare" hx-target="#daily-status" hx-disabled-elt="find button">
+          <input type="hidden" name="mode" value="daily">
+          <button class="btn">Start today's quiz</button>
+        </form>
+      {% endif %}
+      <div id="daily-status" class="w-full empty:hidden"></div>
+    </div>
+  </section>
+
+  {{ learning_panel(learning) }}
 
   <section class="card" id="roadmap">
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -46,12 +145,12 @@
               hx-disabled-elt="this">{{ "Refresh suggestions" if roadmap else "Generate my roadmap" }}</button>
     </div>
     {% if roadmap %}
-      <ul class="mt-3 divide-y divide-slate-100">
+      <ul class="mt-3 divide-y divide-white/10">
         {% for i in roadmap %}
           <li class="flex flex-wrap items-start justify-between gap-2 py-2">
             <div>
-              <p class="font-medium {{ 'text-slate-400 line-through' if i.status == 'done' }}">{{ i.title }} <span class="ml-1 rounded bg-slate-100 px-1.5 text-xs font-normal capitalize text-slate-600">{{ i.kind }}</span></p>
-              {% if i.detail %}<p class="text-sm text-slate-600">{{ i.detail }}</p>{% endif %}
+              <p class="font-medium {{ 'text-slate-500 line-through' if i.status == 'done' }}">{{ i.title }} <span class="ml-1 rounded bg-white/10 px-1.5 text-xs font-normal capitalize text-slate-300">{{ i.kind }}</span></p>
+              {% if i.detail %}<p class="text-sm text-slate-400">{{ i.detail }}</p>{% endif %}
             </div>
             <select name="status" aria-label="Status of {{ i.title }}" class="input !w-auto"
                     hx-post="/roadmap/{{ i.id }}" hx-trigger="change" hx-target="#roadmap" hx-select="#roadmap" hx-swap="outerHTML">

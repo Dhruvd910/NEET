@@ -99,7 +99,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("job", choices=["purge-unconsented", "grow-question-bank", "export-questions", "import-questions",
                                         "import-colleges", "locate-colleges", "approximate-locations", "check-websites", "refresh-nearby-all",
-                                        "create-admin", "make-admin"])
+                                        "create-admin", "make-admin", "make-variants"])
     parser.add_argument("--per-section", type=int, default=100)
     parser.add_argument("--file", default="questions.json")
     parser.add_argument("--offline", action="store_true", help="import-colleges: use the saved NMC snapshot")
@@ -109,6 +109,11 @@ def main():
     if args.job in ("import-colleges", "locate-colleges", "approximate-locations", "check-websites", "refresh-nearby-all", "create-admin",
                     "make-admin"):
         return catalogue_job(args)
+    if args.job == "make-variants":
+        from app.services.variants import make_variants
+        with SessionLocal() as db:
+            print(f"New question versions: {make_variants(db, args.limit or get_settings().variants_per_day)}")
+        return
     if args.job == "grow-question-bank":
         from sqlalchemy import func
 

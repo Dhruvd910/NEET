@@ -22,9 +22,12 @@ def tailwind_binary() -> Path:
 
 
 def main() -> int:
-    args = [str(tailwind_binary()), "-i", str(WEB / "styles/input.css"), "-o", str(WEB / "static/app.css"),
-            "--minify", *sys.argv[1:]]
-    return subprocess.call(args, cwd=WEB / "styles")
+    code = 0
+    # app.css for the site; admin.css for the admin console, which shares JEE Workbench's design
+    for src, out in (("styles/input.css", "static/app.css"), ("styles/admin.css", "static/admin.css")):
+        args = [str(tailwind_binary()), "-i", str(WEB / src), "-o", str(WEB / out), "--minify", *sys.argv[1:]]
+        code = code or subprocess.call(args, cwd=WEB / "styles")
+    return code
 
 
 if __name__ == "__main__":

@@ -554,6 +554,7 @@ def import_questions(db: Session, content: bytes, filename: str, *, source_name:
         opts = [row.get(f"option_{k}", "").strip() for k in range(1, 5)]
         ch = chapters.get((row.get("chapter_code") or "").strip().upper())
         diff = (row.get("difficulty") or "medium").strip().lower()
+        year = (row.get("pyq_year") or "").strip()
         problem = None
         if ch is None:
             problem = f"Unknown chapter_code '{row.get('chapter_code')}'"
@@ -565,6 +566,8 @@ def import_questions(db: Session, content: bytes, filename: str, *, source_name:
             problem = "answer must be 1, 2, 3 or 4"
         elif diff not in ("easy", "medium", "hard"):
             problem = "difficulty must be easy, medium or hard"
+        elif year and not (year.isdigit() and 2013 <= int(year) <= datetime.now().year):
+            problem = "pyq_year must be the NEET year, e.g. 2024"
         if problem:
             errors.append({"row": i, "error": problem})
             job.skipped += 1
@@ -577,7 +580,7 @@ def import_questions(db: Session, content: bytes, filename: str, *, source_name:
         db.add(Question(subject=ch.subject, chapter_id=ch.id, topic=row.get("topic") or None, difficulty=diff,
                         stem=row["question"].strip(), options=opts, correct_index=int(row["answer"]) - 1,
                         explanation=row.get("explanation") or None, review_status=review_status, content_hash=h,
-                        source_name=source_name, import_job_id=job.id,
+                        source_name=source_name, import_job_id=job.id, pyq_year=int(year) if year else None,
                         verification_status=VerificationStatus.verified if review_status == "reviewed"
                         else VerificationStatus.unverified))
         job.inserted += 1

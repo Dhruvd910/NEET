@@ -14,13 +14,14 @@ class FakeTekurious:
     def __init__(self):
         self.known = {"+919800000001": {"id": "tk-existing", "displayName": "Existing Student"}}
         self.sent, self.calls = {}, []
+        self.prefix = "stub-"  # the service's test mode; "req-" acts like a live key
 
     def __call__(self, method, path, json=None, token=None, timeout=20):
         self.calls.append((method, path, json))
         if path == "/v1/countries/allowed":
             return {"items": [{"code": "IN", "name": "India", "dialCode": "+91", "flag": "IN"}]}
         if path == "/v1/otp/send":
-            req = f"stub-{len(self.sent)}"
+            req = f"{self.prefix}{len(self.sent)}"
             self.sent[req] = {"phone": json["phone"], "signup": json.get("isAdult") is True, "name": json.get("displayName")}
             return {"reqId": req}
         if path == "/v1/otp/verify":
@@ -91,6 +92,7 @@ def test_new_number_signs_up_with_name_and_confirmations(client, tek, db):
 def test_returning_number_goes_straight_to_code(client, tek, db):
     db.add(User(phone="+919800000001", tekurious_user_id="tk-existing", name="Existing Student", password_hash="no-password"))
     db.commit()
+    tek.prefix = "req-"  # a live key: real SMS codes
     r = client.post("/login/phone", data={"dial": "+91", "number": "9800000001", "next": "/practice"})
     assert "Enter the code" in r.text and tek.calls[-1][2] == {"phone": "+919800000001"}
     r = client.post("/login/phone/verify", data={"otp": "123456"}, follow_redirects=False)
@@ -135,3 +137,15 @@ def test_test_mode_notice_shows_the_code(client, tek):
     client.post("/login/phone", data={"dial": "+91", "number": "9844455566"})
     r = client.post("/login/phone/signup", data={"name": "Dev", "adult": "on", "terms": "on"})
     assert "Testing mode" in r.text and "123456" in r.text
+
+
+def test_test_mode_never_opens_an_existing_account(client, tek, db):
+    # In test mode the code is 123456 for every number, so anyone could otherwise sign in as this student.
+    db.add(User(phone="+919800000077", tekurious_user_id="tk-0077", name="Existing Student", password_hash="no-password"))
+    db.commit()
+    tek.known["+919800000077"] = {"id": "tk-0077", "displayName": "Existing Student"}
+    client.post("/login/phone", data={"dial": "+91", "number": "9800000077"})
+    r = client.post("/login/phone/verify", data={"otp": "123456"}, follow_redirects=False)
+    assert r.status_code == 403 and "Continue with Google" in r.text
+    assert "set-cookie" not in r.headers  # no session handed out
+    assert not db.scalar(select(User).where(User.phone == "+919800000077")).login_count

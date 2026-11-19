@@ -30,6 +30,7 @@ from app.models import (
 SECTIONS = ["Physics", "Chemistry", "Botany", "Zoology"]
 SERVED = ("sample", "ai_checked", "reviewed")
 GRACE_SECONDS = 30
+DAILY_PER_SECTION = 3  # daily quiz: 12 questions, 12 minutes
 BOOKLET_CODES = ["Q1", "Q2", "Q3", "Q4", "R1", "R2", "R3", "R4", "S1", "S2", "S3", "S4"]
 NEET_PATTERN = {
     "name": "NEET-UG pattern (as in the NEET-UG 2025 Information Bulletin)",
@@ -44,7 +45,7 @@ NEET_PATTERN = {
     "format_note": "The real exam is pen-and-paper: a printed question booklet and an OMR answer sheet "
                    "marked with a ball-point pen. Answers on the OMR sheet cannot be changed.",
 }
-MODES = {"full", "mini", "subject", "chapter", "weak"}
+MODES = {"full", "mini", "subject", "chapter", "weak", "daily", "pyq"}
 REPORT_REASONS = {"wrong_answer", "unclear", "out_of_syllabus", "typo", "other"}
 HIDE_AFTER_REPORTS = 2
 
@@ -86,9 +87,37 @@ def _seen_ids(user_id: int):
     return select(ExamAttemptItem.question_id).join(ExamAttempt).where(ExamAttempt.user_id == user_id)
 
 
-def _unseen(db: Session, user_id: int, *where) -> list[Question]:
-    return list(db.scalars(select(Question).where(
-        Question.review_status.in_(SERVED), Question.id.not_in(_seen_ids(user_id)), *where)))
+def _unseen(db: Session, user_id: int, *where, need: int = 0) -> list[Question]:
+    """Questions this student has never been given, at most one version of each (see Question.variant_of).
+    New versions of questions they have already seen come in only when brand-new ones run short; when even those
+    run short and no new ones can be written, the ones they saw longest ago fill the gap."""
+    from app.services import question_gen
+    base = [Question.review_status.in_(SERVED), Question.pyq_year.is_(None), *where]
+    seen_roots = set(db.scalars(select(func.coalesce(Question.variant_of, Question.id))
+                                .where(Question.id.in_(_seen_ids(user_id)))))
+    one: dict[int, Question] = {}
+    for q in db.scalars(select(Question).where(*base, Question.id.not_in(_seen_ids(user_id)))
+                        .order_by(Question.variant_of.is_not(None), Question.id)):
+        one.setdefault(q.variant_of or q.id, q)
+    fresh = [q for r, q in one.items() if r not in seen_roots]
+    pool = fresh if len(fresh) >= need else list(one.values())
+    if len(pool) < need and not question_gen.enabled():
+        last = (select(ExamAttemptItem.question_id, func.max(ExamAttempt.started_at).label("at"))
+                .join(ExamAttempt).where(ExamAttempt.user_id == user_id).group_by(ExamAttemptItem.question_id).subquery())
+        for q in db.scalars(select(Question).join(last, last.c.question_id == Question.id).where(*base).order_by(last.c.at)):
+            if len(pool) >= need:
+                break
+            if (q.variant_of or q.id) not in one:
+                one[q.variant_of or q.id] = q
+                pool.append(q)
+    return pool
+
+
+def pyq_years(db: Session) -> list[tuple[int, int]]:
+    """(year, number of questions) for every NEET year with previous-year questions, newest first."""
+    return list(db.execute(select(Question.pyq_year, func.count()).where(
+        Question.pyq_year.is_not(None), Question.review_status.in_(SERVED))
+        .group_by(Question.pyq_year).order_by(Question.pyq_year.desc())).tuples())
 
 
 def _blueprint_pick(pool: list[Question], n: int, rng: random.Random) -> list[Question]:
@@ -160,7 +189,7 @@ def _not_ready(needed: dict[str, int], chapter_ids: list[int] | None = None) -> 
 
 def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = None,
                    chapter_ids: list[int] | None = None, count: int | None = None,
-                   strict_omr: bool = False, seed: int | None = None) -> ExamAttempt:
+                   strict_omr: bool = False, seed: int | None = None, year: int | None = None) -> ExamAttempt:
     if mode not in MODES:
         raise ExamError(f"Unknown test type '{mode}'.")
     open_attempt = db.scalar(select(ExamAttempt).where(ExamAttempt.user_id == user.id,
@@ -181,7 +210,10 @@ def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = 
         per = 45 if mode == "full" else min(max(count or 10, 5), 45)
         short = {}
         for s in SECTIONS:
-            pool = _unseen(db, user.id, Question.subject == s)
+            pool = _unseen(db, user.id, Question.subject == s, need=per)
+            # Mocks should feel like NEET: leave one-step recall questions out while enough harder ones remain.
+            harder = [q for q in pool if q.difficulty != "easy"]
+            pool = harder if len(harder) >= per else pool
             if len(pool) < per:
                 short[s] = per - len(pool)
             picked += _blueprint_pick(pool, per, rng)
@@ -197,7 +229,7 @@ def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = 
         short = {}
         for s in subjects:
             want = n // len(subjects)
-            pool = _unseen(db, user.id, Question.subject == s)
+            pool = _unseen(db, user.id, Question.subject == s, need=want)
             if len(pool) < want:
                 short[s] = want - len(pool)
             picked += _blueprint_pick(pool, want, rng)
@@ -209,7 +241,7 @@ def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = 
         if not chapter_ids or len(chapter_ids) > 10:
             raise ExamError("Choose between 1 and 10 chapters.")
         n = min(max(count or 20, 5), 90)
-        pool = _unseen(db, user.id, Question.chapter_id.in_(chapter_ids))
+        pool = _unseen(db, user.id, Question.chapter_id.in_(chapter_ids), need=n)
         if len(pool) < n:
             subj = db.scalar(select(SyllabusChapter.subject).where(SyllabusChapter.id == chapter_ids[0])) or "questions"
             raise _not_ready({subj: n - len(pool)}, chapter_ids)
@@ -217,6 +249,30 @@ def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = 
         names = list(db.scalars(select(SyllabusChapter.name).where(SyllabusChapter.id.in_(chapter_ids))))
         config["chapter_ids"] = chapter_ids
         title = "Chapter test: " + ", ".join(names[:3]) + (f" +{len(names) - 3} more" if len(names) > 3 else "")
+    elif mode == "pyq":
+        # The year's real questions in paper order (import order). Retakes are allowed: the paper is fixed.
+        where = [Question.pyq_year == year, Question.review_status.in_(SERVED)]
+        if subject:
+            where.append(Question.subject.in_(["Botany", "Zoology"] if subject == "Biology" else [subject]))
+        picked = list(db.scalars(select(Question).where(*where).order_by(Question.id)))
+        if not picked:
+            raise ExamError(f"No NEET {year} questions{' for ' + subject if subject else ''} have been added yet.")
+        config.update(year=year, subject=subject)
+        title = f"NEET {year} paper" + (f" · {subject}" if subject else "")
+    elif mode == "daily":
+        from app.services.learning import IST, daily_quiz
+        if daily_quiz(db, user.id) is not None:  # unopened papers were deleted above, so this one was started
+            raise ExamError("You've already taken today's quiz. A new one opens tomorrow.")
+        short = {}
+        for s in SECTIONS:
+            pool = _unseen(db, user.id, Question.subject == s, need=DAILY_PER_SECTION)
+            if len(pool) < DAILY_PER_SECTION:
+                short[s] = DAILY_PER_SECTION - len(pool)
+            picked += _blueprint_pick(pool, DAILY_PER_SECTION, rng)
+        if short:
+            raise _not_ready(short)
+        today = _now().astimezone(IST)
+        title = f"Daily quiz · {today.day} {today:%b %Y}"
     else:  # weak
         acc = chapter_accuracy(db, user.id)
         weak = [cid for cid, s in acc.items() if s["attempted"] >= 2 and (s["accuracy"] or 0) < 60]
@@ -224,7 +280,7 @@ def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = 
             raise ExamError("No weak chapters yet. Weak chapters are ones where you got under 60% right in "
                             "at least 2 questions; take a few tests first.")
         n = min(max(count or 30, 5), 90)
-        pool = _unseen(db, user.id, Question.chapter_id.in_(weak))
+        pool = _unseen(db, user.id, Question.chapter_id.in_(weak), need=n)
         if len(pool) < n:
             raise _not_ready({"weak-chapter": n - len(pool)}, weak)
         picked = _blueprint_pick(pool, n, rng)
@@ -232,7 +288,7 @@ def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = 
         title = "Weak-chapter practice"
 
     order = {s: i for i, s in enumerate(SECTIONS)}
-    picked.sort(key=lambda q: order.get(q.subject, 9))  # NEET section order; mixed chapters within a section
+    picked.sort(key=lambda q: order.get(q.subject, 9))  # NEET section order; stable, so a past paper keeps its order
     seconds = 60 * len(picked)  # NEET allows 180 minutes for 180 questions
     now = _now()
     attempt = ExamAttempt(user_id=user.id, mode=mode, title=title, config=config, pattern=NEET_PATTERN,

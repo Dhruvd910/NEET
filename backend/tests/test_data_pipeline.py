@@ -287,3 +287,16 @@ def test_remove_demo_deletes_every_demo_record(tmp_path):
             assert s.scalar(select(func.count()).select_from(model)) == 0, model.__name__
         assert s.scalar(select(func.count()).select_from(InfoArticle)) > 0  # reference data stays
     engine.dispose()
+
+
+def test_city_clean_up_and_town_from_name():
+    from app.models import College
+    from app.services.real_colleges import BAD_CITY, _name_town
+    for junk in ["Pin Code", "Jail Road", "PO: Indrapur", "10", "A.p", "Porbandar. Pin:"]:
+        assert BAD_CITY.search(junk), junk
+    for town in ["Warangal", "Port Blair", "Navi Mumbai"]:
+        assert not BAD_CITY.search(town), town
+    assert _name_town(College(name="Kakatiya Medical College, Warangal", state="Telangana")) == "Warangal"
+    # A name ending in its state is not a town: that once put colleges at the centre of a whole state.
+    assert _name_town(College(name="Government Medical College, Rajasthan", state="Rajasthan")) is None
+    assert _name_town(College(name="Pragjyotishpur Medical College", state="Assam")) is None

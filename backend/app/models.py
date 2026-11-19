@@ -694,6 +694,10 @@ class Question(Base, Provenance):
     # single / statements / assertion_reason / match (the NEET question styles)
     qformat: Mapped[str] = mapped_column(String(20), default="single")
     generated_by: Mapped[str | None] = mapped_column(String(120))
+    # A real NEET-UG question from that year's paper (shown only in the previous-year section, never in mocks).
+    pyq_year: Mapped[int | None] = mapped_column(Integer, index=True)
+    # A new version (numbers or wording changed) of this question; a paper never holds two versions of one question.
+    variant_of: Mapped[int | None] = mapped_column(ForeignKey("questions.id", ondelete="CASCADE"), index=True)
     checked_by: Mapped[str | None] = mapped_column(String(120))
     report_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -720,7 +724,7 @@ class ExamAttempt(Base):
     __tablename__ = "exam_attempts"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    mode: Mapped[str] = mapped_column(String(20))  # full / mini / subject / chapter / weak
+    mode: Mapped[str] = mapped_column(String(20))  # full / mini / subject / chapter / weak / daily / pyq
     title: Mapped[str] = mapped_column(String(160))
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     pattern: Mapped[dict] = mapped_column(JSON, default=dict)

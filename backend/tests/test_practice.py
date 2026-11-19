@@ -235,18 +235,23 @@ def test_nearby_places_are_grouped_and_demo_locations_hidden(client, db):
 def test_questions_never_repeat_for_a_student(client, db):
     fresh_student(client)
     seen: set[int] = set()
+    first: set[int] = set()
     while min(client.get("/api/exams/readiness").json()["unseen"].values()) >= 20:  # until the bank is used up
         aid = paper(client, mode="mini", count=20)
         ids = {i.question_id for i in db.get(ExamAttempt, aid).items}
         assert not ids & seen, "a question was repeated"
+        first = first or ids
         seen |= ids
         client.post(f"/api/exams/attempts/{aid}/submit")
     assert len(seen) >= 80
+    # The bank is used up and question writing is off (as in tests): never-seen questions come first, then the
+    # ones seen longest ago, instead of refusing or costing money.
     r = client.post("/api/exams/attempts", json={"mode": "mini", "count": 20})
-    # Every question has been seen and generation is off in tests: refuse rather than repeat.
-    assert r.status_code == 422 and r.json()["status"] == "preparing" and "already seen" in r.json()["detail"]
+    assert r.status_code == 201, r.text
+    again = {i.question_id for i in db.get(ExamAttempt, r.json()["id"]).items}
+    assert again & first  # the repeats are the oldest ones
     ready = client.get("/api/exams/readiness").json()
-    assert min(ready["unseen"].values()) < 20 and ready["full_mocks_available"] == 0 and not ready["can_generate"]
+    assert min(ready["unseen"].values()) < 20 and not ready["can_generate"]
 
 
 def test_unopened_paper_is_replaced_not_stacked(client, db):
@@ -280,3 +285,116 @@ def test_reported_questions_are_hidden_after_two_reports(client, db):
     db.refresh(q)
     assert q.report_count == 2 and q.review_status == "flagged"
     assert q.id not in {x.id for x in exams._unseen(db, other.id, Question.subject == "Botany")}  # no longer served
+
+
+def test_learning_progress_and_estimate(client, db):
+    from app.services import learning
+    fresh_student(client)
+    user_id = client.get("/api/auth/me").json()["id"]
+    physics = db.scalars(select(SyllabusChapter).where(SyllabusChapter.subject == "Physics")).all()
+    for c in physics[:2]:
+        client.put(f"/api/syllabus/progress/{c.id}", json={"status": "mastered"})
+    client.put(f"/api/syllabus/progress/{physics[2].id}", json={"status": "learning"})
+    p = learning.progress(db, user_id)
+    phy = next(s for s in p["subjects"] if s["name"] == "Physics")
+    hours = sum(c.est_hours for c in physics)
+    done = physics[0].est_hours + physics[1].est_hours + physics[2].est_hours / 2
+    assert phy["covered"] == 2 and phy["percent"] == round(100 * done / hours)
+    # Pace: all of it happened today, so the window is the 7-day minimum.
+    assert p["pace_window_days"] == 7 and phy["eta"]["days"] == round((hours - done) / (done / 7))
+    assert next(s for s in p["subjects"] if s["name"] == "Chemistry")["eta"] is None  # nothing done, no guess
+    assert p["overall"]["last"] is not None
+    assert "Learning progress" in client.get("/dashboard").text
+
+
+def test_daily_quiz_once_a_day(client, db):
+    fresh_student(client)
+    r = client.post("/api/exams/attempts", json={"mode": "daily"})
+    assert r.status_code == 201, r.text
+    assert r.json()["questions"] == 12
+    aid = r.json()["id"]
+    client.post(f"/api/exams/attempts/{aid}/start")
+    client.post(f"/api/exams/attempts/{aid}/submit")
+    again = client.post("/api/exams/attempts", json={"mode": "daily"})
+    assert again.status_code == 422 and "today's quiz" in again.text
+    assert "/practice/%d" % aid in client.get("/dashboard").text  # the dashboard links to today's result
+
+
+def test_previous_year_papers_are_separate_from_mocks(admin, client, db):
+    tag = uuid.uuid4().hex[:6]
+    csv_text = ("chapter_code,difficulty,question,option_1,option_2,option_3,option_4,answer,pyq_year\n"
+                f"PHY-12-03,medium,PYQ one {tag},1 A,2 A,3 A,4 A,2,2019\n"
+                f"CHE-11-01,medium,PYQ two {tag},a,b,c,d,3,2019\n"
+                f"PHY-12-03,medium,Bad year {tag},a,b,c,d,1,1999\n")
+    r = admin.post("/api/admin/questions/import", data={"data_source_code": "DEMO", "source_name": "NEET 2019 paper",
+                                                        "expert_reviewed": "true"},
+                   files={"file": ("pyq.csv", csv_text.encode(), "text/csv")})
+    assert (r.json()["inserted"], r.json()["skipped"]) == (2, 1)
+    pyq_ids = set(db.scalars(select(Question.id).where(Question.pyq_year == 2019)))
+
+    fresh_student(client)
+    r = client.post("/api/exams/attempts", json={"mode": "pyq", "year": 2019})
+    assert r.status_code == 201, r.text
+    a = db.get(ExamAttempt, r.json()["id"])
+    assert a.title == "NEET 2019 paper" and {i.question_id for i in a.items} == pyq_ids
+    assert [i.section for i in a.items] == ["Physics", "Chemistry"]  # paper order
+    assert client.post("/api/exams/attempts", json={"mode": "pyq", "year": 2018}).status_code == 422  # none added
+    # Mocks never use them.
+    m = client.post("/api/exams/attempts", json={"mode": "mini", "count": 5}).json()
+    db.expire_all()  # the unopened past paper was replaced, and SQLite may reuse its id
+    assert not pyq_ids & {i.question_id for i in db.get(ExamAttempt, m["id"]).items}
+
+
+def test_question_versions_never_share_a_paper(db, monkeypatch):
+    import random
+    import re
+
+    from app.config import get_settings
+    from app.models import ExamAttemptItem, User
+    from app.services import exams, variants
+    ch = db.scalars(select(SyllabusChapter).where(SyllabusChapter.subject == "Physics")).first()
+    topic = uuid.uuid4().hex
+    uid = db.scalars(select(User.id)).first()
+
+    def q(stem, of=None):
+        x = Question(subject="Physics", chapter_id=ch.id, topic=topic, stem=stem, options=["1 N", "2 N", "3 N", "4 N"],
+                     correct_index=1, review_status="reviewed", content_hash=_hash(stem + topic, []), variant_of=of,
+                     source_name="test")
+        db.add(x)
+        db.flush()
+        return x
+
+    a, b = q("A 2 kg body at 10 m/s stops in 4 s. Force?"), q("Unrelated question")
+    a2 = q("A 4 kg body at 15 m/s stops in 5 s. Force?", a.id)
+    mine = Question.topic == topic
+    assert {x.id for x in exams._unseen(db, uid, mine, need=2)} == {a.id, b.id}  # one version each, the original
+    att = ExamAttempt(user_id=uid, mode="mini", title="t", duration_seconds=60, max_score=4,
+                      deadline_at=datetime.now(timezone.utc), status="submitted")
+    db.add(att)
+    db.flush()
+    db.add(ExamAttemptItem(attempt_id=att.id, question_id=a.id, position=1, section="Physics", correct_index=1))
+    db.flush()
+    assert [x.id for x in exams._unseen(db, uid, mine, need=1)] == [b.id]  # brand-new questions first
+    assert {x.id for x in exams._unseen(db, uid, mine, need=2)} == {b.id, a2.id}  # then a new version, not a repeat
+
+    # The free-model job keeps a version only when the checker reaches the writer's answer.
+    s = get_settings()
+    writer = {"stem": "A 3 kg body at 12 m/s stops in 4 s. Force?", "options": ["3 N", "6 N", "9 N", "12 N"],
+              "answer": 3, "explanation": "3 x 3"}
+    agree = {"confident": True, "unambiguous": True, "in_syllabus": True}
+
+    def ask(right):
+        def fake(client, model, prompt, t):
+            if model == s.variant_writer_model:
+                return writer
+            shown = re.findall(r"^(\d)\. (.*)$", prompt, re.M)  # options after shuffling
+            n = next(int(i) for i, o in shown if o == "9 N")
+            return {**agree, "answer": n if right else n % 4 + 1}
+        return fake
+
+    monkeypatch.setattr(variants, "_ask", ask(right=False))
+    assert variants.make_variant(db, b, None, random.Random(1)) == "checker disagreed"
+    monkeypatch.setattr(variants, "_ask", ask(right=True))
+    assert variants.make_variant(db, b, None, random.Random(1)) == "kept"
+    v = db.scalar(select(Question).where(Question.variant_of == b.id))
+    assert v.options[v.correct_index] == "9 N" and v.review_status == "ai_checked" and v.pyq_year is None
