@@ -19,6 +19,7 @@
       </div>
     </div>
   </section>
+  {% include "practice/_celebrate.html" %}
   {% if r.auto_submitted %}{% call notice("warn") %}Time ran out, so your answer sheet was collected automatically with the answers saved so far.{% endcall %}{% endif %}
   {% if v.has_sample_questions or v.has_ai_questions %}
     {% call notice() %}This paper used practice questions that are not yet expert-reviewed{{ " (AI-written; each answer was confirmed by a second, independent AI)" if v.has_ai_questions }}. If something looks wrong, use “Report a problem” below.{% endcall %}

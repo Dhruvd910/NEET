@@ -296,3 +296,23 @@ aside::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.12); border-rad
   html.nav-collapsed .side .side-rule { display: block; }
   html.nav-collapsed .side nav a, html.nav-collapsed .side > a { justify-content: center; padding-left: 0; padding-right: 0; }
 }
+
+/* ---------- game layer (fixed colours: this theme remaps the pale palette): daily-quiz game, XP, levels, result celebration ---------- */
+@layer components {
+  .heart { @apply inline-block text-xl leading-none text-[#fb7185] transition; }
+  .heart.lost { @apply text-white/15 grayscale; }
+  .xp-pill { @apply inline-flex items-center gap-1 rounded-full bg-amber-400/15 px-3 py-1 font-mono text-sm font-bold text-[#fde68a] ring-1 ring-amber-400/30; }
+  .combo { @apply inline-flex items-center rounded-full bg-violet-400/15 px-3 py-1 font-mono text-sm font-bold text-[#ddd6fe] ring-1 ring-violet-400/30; }
+  .gdot { @apply h-2.5 flex-1 rounded-full bg-white/10; }
+  .gdot.right { @apply bg-[#34d399]; } .gdot.wrong { @apply bg-[#fb7185]; } .gdot.part { @apply bg-[#fcd34d]; } .gdot.now { @apply bg-[#67e8f9] animate-pulse; }
+  .verdict { @apply flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-lg font-bold; }
+  .verdict.ok { @apply bg-[#34d399]/15 text-[#a7f3d0] ring-1 ring-emerald-400/40; animation: pop .45s cubic-bezier(.2,1.6,.4,1); }
+  .verdict.no { @apply bg-[#fb7185]/15 text-[#fecdd3] ring-1 ring-rose-400/40; animation: shake .45s ease; }
+  .star { @apply text-4xl text-white/15 sm:text-5xl; }
+  .star.on { @apply text-[#fcd34d]; filter: drop-shadow(0 0 10px rgba(252,211,77,.55)); animation: pop .5s cubic-bezier(.2,1.6,.4,1) both; }
+  .lvl-bar { @apply h-2.5 overflow-hidden rounded-full bg-white/10; }
+  .lvl-bar > span { @apply block h-full rounded-full bg-gradient-to-r from-amber-300 via-cyan-300 to-violet-400; }
+}
+@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
+@keyframes shake { 0%, 100% { transform: translateX(0) } 20%, 60% { transform: translateX(-8px) } 40%, 80% { transform: translateX(8px) } }
+@media (prefers-reduced-motion: reduce) { .verdict.ok, .verdict.no, .star.on { animation: none; } }

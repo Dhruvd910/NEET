@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.models import College, ExamAttempt, MockTest, Question, SyllabusChapter
 from app.practice_seed import _hash
-from app.services import study_plan
+from app.services import exams, study_plan
 from tests.conftest import PASSWORD
 
 
@@ -311,13 +311,44 @@ def test_daily_quiz_once_a_day(client, db):
     fresh_student(client)
     r = client.post("/api/exams/attempts", json={"mode": "daily"})
     assert r.status_code == 201, r.text
-    assert r.json()["questions"] == 12
+    assert r.json()["questions"] == 5
     aid = r.json()["id"]
     client.post(f"/api/exams/attempts/{aid}/start")
     client.post(f"/api/exams/attempts/{aid}/submit")
     again = client.post("/api/exams/attempts", json={"mode": "daily"})
     assert again.status_code == 422 and "today's quiz" in again.text
     assert "/practice/%d" % aid in client.get("/dashboard").text  # the dashboard links to today's result
+
+
+def test_daily_quiz_game_lives_combo_xp(client, db):
+    from app.services import game
+    fresh_student(client)
+    aid = client.post("/api/exams/attempts", json={"mode": "daily"}).json()["id"]
+    assert "Lock in" in client.get(f"/practice/{aid}").text  # straight into the game: no admit card or OMR sheet
+    a = db.get(ExamAttempt, aid)
+    db.refresh(a)
+    items = sorted(a.items, key=lambda i: i.position)
+    assert {i.section for i in items} == set(exams.SECTIONS)  # every subject, one twice
+    play = lambda pos, opt: client.post(f"/practice/{aid}/play/{pos}", data={"option": opt})
+    right = lambda it: it.correct_index
+    wrong = lambda it: (it.correct_index + 1) % 4
+    r = play(1, right(items[0])).text
+    assert "Correct!" in r and "+10 XP" in r
+    r = play(2, right(items[1])).text
+    assert "+20 XP" in r and "combo ×2" in r  # the second in a row counts double
+    assert play(1, wrong(items[0])).headers.get("hx-redirect") == f"/practice/{aid}"  # an answer cannot be changed
+    assert "Pick an answer" in client.post(f"/practice/{aid}/play/3", data={}).text
+    for pos in (3, 4):
+        assert "Not quite" in play(pos, wrong(items[pos - 1])).text
+    assert "Game over" in play(5, wrong(items[4])).text  # third wrong answer: out of lives
+    db.expire_all()
+    a = db.get(ExamAttempt, aid)
+    g = game.run(a)
+    assert a.status == "submitted" and g["hearts"] == 0 and g["xp"] == 10 + 20 + game.FINISH_BONUS and a.score == 8 - 3
+    page = client.get(f"/practice/{aid}").text
+    assert "+50 XP" in page and "Level 1" in page and "★" in page
+    assert game.streak(db, a.user_id) == 1
+    assert "Lv 1" in client.get("/dashboard").text
 
 
 def test_previous_year_papers_are_separate_from_mocks(admin, client, db):

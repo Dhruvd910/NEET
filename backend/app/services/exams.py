@@ -30,7 +30,7 @@ from app.models import (
 SECTIONS = ["Physics", "Chemistry", "Botany", "Zoology"]
 SERVED = ("sample", "ai_checked", "reviewed")
 GRACE_SECONDS = 30
-DAILY_PER_SECTION = 3  # daily quiz: 12 questions, 12 minutes
+DAILY_COUNT = 5  # the daily quiz is a 5-question game: one per subject plus one more (rotates daily), 2 min each
 BOOKLET_CODES = ["Q1", "Q2", "Q3", "Q4", "R1", "R2", "R3", "R4", "S1", "S2", "S3", "S4"]
 NEET_PATTERN = {
     "name": "NEET-UG pattern (as in the NEET-UG 2025 Information Bulletin)",
@@ -264,11 +264,13 @@ def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = 
         if daily_quiz(db, user.id) is not None:  # unopened papers were deleted above, so this one was started
             raise ExamError("You've already taken today's quiz. A new one opens tomorrow.")
         short = {}
+        extra = SECTIONS[_now().astimezone(IST).toordinal() % len(SECTIONS)]
         for s in SECTIONS:
-            pool = _unseen(db, user.id, Question.subject == s, need=DAILY_PER_SECTION)
-            if len(pool) < DAILY_PER_SECTION:
-                short[s] = DAILY_PER_SECTION - len(pool)
-            picked += _blueprint_pick(pool, DAILY_PER_SECTION, rng)
+            need = 2 if s == extra else 1
+            pool = _unseen(db, user.id, Question.subject == s, need=need)
+            if len(pool) < need:
+                short[s] = need - len(pool)
+            picked += _blueprint_pick(pool, need, rng)
         if short:
             raise _not_ready(short)
         today = _now().astimezone(IST)
@@ -289,7 +291,7 @@ def create_attempt(db: Session, user: User, mode: str, *, subject: str | None = 
 
     order = {s: i for i, s in enumerate(SECTIONS)}
     picked.sort(key=lambda q: order.get(q.subject, 9))  # NEET section order; stable, so a past paper keeps its order
-    seconds = 60 * len(picked)  # NEET allows 180 minutes for 180 questions
+    seconds = (120 if mode == "daily" else 60) * len(picked)  # NEET allows 180 minutes for 180 questions
     now = _now()
     attempt = ExamAttempt(user_id=user.id, mode=mode, title=title, config=config, pattern=NEET_PATTERN,
                           strict_omr=strict_omr, duration_seconds=seconds, started_at=now,

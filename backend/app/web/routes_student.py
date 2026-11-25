@@ -16,7 +16,7 @@ from app.routers import colleges as colleges_api
 from app.routers import mock_tests as mock_api
 from app.routers import practice as practice_api
 from app.routers import profile as profile_api
-from app.services import learning
+from app.services import game, learning
 from app.web.core import Page, fmt_date, student_page
 
 router = APIRouter(include_in_schema=False)
@@ -51,7 +51,7 @@ def dashboard(p: Page = Depends(student_page)):
     return p.render("student/dashboard.html", profile=prof["profile"], exam=(prof["exams"] or [None])[-1],
                     roadmap=profile_api.get_roadmap(p.user, p.db), mocks=mock_api.analytics(p.user, p.db),
                     saved=colleges_api.saved(p.user, p.db), learning=learning.progress(p.db, p.user.id),
-                    daily=learning.daily_quiz(p.db, p.user.id))
+                    daily=learning.daily_quiz(p.db, p.user.id), game=game.profile(p.db, p.user))
 
 
 @router.post("/roadmap/generate", response_class=HTMLResponse)

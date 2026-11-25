@@ -14,7 +14,7 @@ from markupsafe import Markup, escape
 from pydantic import ValidationError
 
 from app.routers import practice as practice_api
-from app.services import exams
+from app.services import exams, game
 from app.web.core import Page, student_page, templates
 from app.web.routes_auth import hx_redirect
 from app.web.routes_student import error_text
@@ -150,6 +150,8 @@ def _room(p: Page, view: dict, cur: int, message: str | None = None, partial: bo
 @router.get("/practice/{attempt_id}", response_class=HTMLResponse)
 def attempt_page(attempt_id: int, p: Page = Depends(student_page), step: int = 1, filter: str = "wrong"):  # noqa: A002
     a = _attempt(p, attempt_id)
+    if a.mode == "daily" and a.status != "submitted":  # the daily quiz is a game, not a sealed exam paper
+        return _game_page(p, a)
     view = exams.attempt_view(p.db, a)
     if view["status"] == "ready":
         prof = p.user.profile
@@ -163,10 +165,49 @@ def attempt_page(attempt_id: int, p: Page = Depends(student_page), step: int = 1
         shown = [q for q in qs if flt == "all" or (q["marked_for_review"] if flt == "marked" else q["outcome"] == flt)]
         r = view["result"]
         return p.render("practice/result.html", v=view, r=r, shown=shown, flt=flt, REASONS=REPORT_REASONS,
-                        pct=max(0, round(100 * r["score"] / r["max_score"])) if r["max_score"] else 0)
+                        pct=max(0, round(100 * r["score"] / r["max_score"])) if r["max_score"] else 0,
+                        a=a, g=game.run(a), stars=game.stars(a), prof=game.profile(p.db, p.user))
     qs = view["questions"]
     first_unvisited = next((i for i, q in enumerate(qs) if not q["visited"]), 0)
     return _room(p, view, first_unvisited)
+
+
+def _game_page(p: Page, a):
+    """Daily-quiz game: one question at a time with 3 lives; each answer is checked as soon as it is locked in."""
+    exams.start_attempt(p.db, a)  # no admit card or OMR sheet for the quiz: the clock starts when it opens
+    if exams.expire_if_due(p.db, a):
+        return RedirectResponse(f"/practice/{a.id}", status_code=303)
+    item = next((i for i in sorted(a.items, key=lambda i: i.position) if i.selected_index is None), None)
+    if item is None:
+        exams.submit(p.db, a)
+        return RedirectResponse(f"/practice/{a.id}", status_code=303)
+    return p.render("practice/game.html", a=a, item=item, g=game.run(a), HEARTS=game.HEARTS,
+                    remaining=exams.remaining_seconds(a))
+
+
+@router.post("/practice/{attempt_id}/play/{position}", response_class=HTMLResponse)
+async def play(attempt_id: int, position: int, request: Request, p: Page = Depends(student_page)):
+    a = _attempt(p, attempt_id)
+    item = next((i for i in a.items if i.position == position), None)
+    if a.mode != "daily" or item is None:
+        raise HTTPException(404, "Not found")
+    if a.status != "in_progress" or item.selected_index is not None:  # already locked in (double tap, back button)
+        return hx_redirect(f"/practice/{a.id}")
+    choice = _num((await request.form()).get("option"))
+    if choice is None or not 0 <= choice <= 3:
+        return HTMLResponse('<p class="text-sm text-red-700">Pick an answer first.</p>', headers={"HX-Retarget": "#pick"})
+    before = game.run(a)["xp"]
+    try:
+        exams.save_answer(p.db, a, position, selected_index=choice, marked_for_review=False, time_spent_delta=0)
+    except exams.ExamError:
+        return hx_redirect(f"/practice/{a.id}")
+    g = game.run(a)
+    over = g["hearts"] == 0 or g["answered"] == g["total"]
+    if over:  # out of lives or out of questions; unanswered ones count as blank
+        exams.submit(p.db, a)
+        g = game.run(a)
+    return p.render("practice/_game_turn.html", a=a, item=item, g=g, over=over, HEARTS=game.HEARTS,
+                    right=item.selected_index == item.correct_index, gained=g["xp"] - before)
 
 
 @router.post("/practice/{attempt_id}/start", response_class=HTMLResponse)

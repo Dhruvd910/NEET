@@ -121,8 +121,14 @@
         {% elif daily and daily.status == "in_progress" %}
           <p class="mt-1 text-lg font-bold text-white">In progress</p>
         {% else %}
-          <p class="mt-1 text-sm text-slate-300">12 questions, 3 from each subject. About 12 minutes.</p>
+          <p class="mt-1 text-sm text-slate-300">5 questions · 3 lives · combos earn XP. About 10 minutes.</p>
         {% endif %}
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span class="xp-pill !px-2 !py-0.5 !text-xs">Lv {{ game.level }}</span>
+          <div class="lvl-bar w-32"><span style="width: {{ game.pct }}%"></span></div>
+          <span class="tabular-nums text-slate-400">{{ game.xp }} XP</span>
+          {% if game.streak %}<span class="text-[#fecdd3]">🔥 {{ game.streak }}-day streak</span>{% endif %}
+        </div>
       </div>
       {% if daily and daily.status != "ready" %}
         <a class="btn-secondary" href="/practice/{{ daily.id }}">{{ "See answers" if daily.status == "submitted" else "Continue" }}</a>

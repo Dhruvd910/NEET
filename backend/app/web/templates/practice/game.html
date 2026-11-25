@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_ui.html" import subject_badge %}
+{% block title %}Daily quiz · NEET Compass{% endblock %}
+{% block content %}
+{% set q = item.question %}
+<div class="mx-auto max-w-3xl space-y-4">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div><p class="eyebrow">Daily quiz · question {{ item.position }} of {{ a.items|length }}</p>
+      <h1 class="h2 mt-1">{{ a.title }}</h1></div>
+    <div class="text-right"><p class="eyebrow">Time left</p>
+      <span id="clock" class="text-2xl font-extrabold tabular-nums text-teal-700" data-remaining="{{ remaining }}" role="timer" aria-live="off">--:--</span></div>
+  </div>
+  {% with now = item.position %}{% include "practice/_game_bar.html" %}{% endwith %}
+
+  <section id="turn" class="card">
+    <div class="mb-3">{{ subject_badge(item.section) }}</div>
+    <div class="text-[17px] leading-relaxed">{{ q.stem|stem }}</div>
+    <form class="mt-4" hx-post="/practice/{{ a.id }}/play/{{ item.position }}" hx-target="#turn" hx-swap="innerHTML">
+      <div class="grid gap-2">
+        {% for opt in q.options %}
+          <label class="opt flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 px-3 py-2.5 transition hover:border-teal-400 has-[:checked]:border-teal-400 has-[:checked]:bg-teal-400/10">
+            <input type="radio" name="option" value="{{ loop.index0 }}" class="mt-1 accent-teal-500">
+            <span class="shrink-0 font-semibold">({{ loop.index }})</span><span>{{ opt }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <button class="btn">Lock in ⚡</button>
+        <span id="pick"></span>
+      </div>
+    </form>
+  </section>
+</div>
+<script>
+  (() => {
+    const el = document.getElementById("clock");
+    const end = Date.now() + Number(el.dataset.remaining) * 1000;
+    let sent = false;
+    const tick = () => {
+      const s = Math.max(0, Math.round((end - Date.now()) / 1000));
+      el.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+      if (s === 0 && !sent) { sent = true; htmx.ajax("POST", "/practice/{{ a.id }}/submit", {values: {auto: 1}}); }  // the server enforces the deadline too
+      else setTimeout(tick, 500);
+    };
+    tick();
+  })();
+</script>
+{% endblock %}

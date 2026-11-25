@@ -1,0 +1,36 @@
+{# The answer just locked in: right or wrong at once, the official/checked key, XP, then the next question or the result. #}
+{% set q = item.question %}
+{% with oob = true %}{% include "practice/_game_bar.html" %}{% endwith %}
+<div class="verdict {{ 'ok' if right else 'no' }}" role="status">
+  {% if right %}
+    <span>✅ Correct!</span><span class="xp-pill">+{{ gained }} XP</span>{% if g.combo >= 2 %}<span class="combo">combo ×{{ g.combo }}</span>{% endif %}
+  {% else %}
+    <span>❌ Not quite</span><span class="text-sm font-medium">{{ '−1 life' if g.hearts else 'no lives left' }}</span>
+  {% endif %}
+</div>
+<div class="mt-4 text-[17px] leading-relaxed">{{ q.stem|stem }}</div>
+<ol class="mt-3 space-y-1.5">
+  {% for o in q.options %}{% set i = loop.index0 %}
+  <li class="rounded-lg px-3 py-1.5 {{ 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-400/40' if i == item.correct_index else ('bg-red-50 text-red-900' if i == item.selected_index else '') }}">
+    ({{ loop.index }}) {{ o }}{{ " ✓ correct" if i == item.correct_index }}{{ " ✗ your answer" if i == item.selected_index and i != item.correct_index }}</li>
+  {% endfor %}
+</ol>
+{% if q.explanation %}<p class="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><strong>Explanation:</strong> {{ q.explanation }}</p>{% endif %}
+<div class="mt-5 flex justify-end">
+  {% if over %}
+    <a class="btn" href="/practice/{{ a.id }}">{{ 'Game over · see result' if g.hearts == 0 else 'Finish · see result' }} →</a>
+  {% else %}
+    <a class="btn" href="/practice/{{ a.id }}" autofocus>Next question →</a>
+  {% endif %}
+</div>
+<script>
+  // a short chime for right, a low buzz for wrong (silently skipped where audio is blocked)
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), gn = ac.createGain();
+    const notes = {{ '[660, 880]' if right else '[220, 160]' }};
+    o.type = "{{ 'triangle' if right else 'sawtooth' }}"; o.connect(gn); gn.connect(ac.destination);
+    gn.gain.setValueAtTime(.08, ac.currentTime); gn.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + .35);
+    notes.forEach((f, i) => o.frequency.setValueAtTime(f, ac.currentTime + i * .12));
+    o.start(); o.stop(ac.currentTime + .36);
+  } catch (e) {}
+</script>
